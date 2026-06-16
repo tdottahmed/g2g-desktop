@@ -33,6 +33,36 @@
   .app-title { font-size: 15px; font-weight: 600; color: #f1f5f9; letter-spacing: 0.3px; }
   .header button { -webkit-app-region: no-drag; }
 
+  /* ── Update banner ── */
+  #update-banner {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 20px;
+    background: #1c2a4a;
+    border-bottom: 1px solid #2563eb55;
+    font-size: 13px;
+    color: #93c5fd;
+  }
+  #update-banner.show { display: flex; }
+  #update-banner .banner-left { display: flex; align-items: center; gap: 8px; }
+  #update-banner .banner-actions { display: flex; gap: 8px; }
+  .btn-banner {
+    padding: 4px 12px; border-radius: 5px; border: 1px solid #2563eb;
+    background: #1d4ed8; color: #fff; font-size: 12px; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-banner:hover { background: #2563eb; }
+  .btn-banner.secondary {
+    background: transparent; border-color: #334155; color: #64748b;
+  }
+  .btn-banner.secondary:hover { background: #1e2535; color: #94a3b8; }
+  #update-progress-bar {
+    height: 3px; background: #2563eb; border-radius: 2px;
+    width: 0; transition: width 0.3s;
+    margin-top: 4px;
+  }
+
   /* ── Status bar ── */
   .status-bar {
     display: flex;
@@ -51,18 +81,26 @@
     margin-right: 6px;
     flex-shrink: 0;
   }
-  .dot-idle    { background: #64748b; }
-  .dot-running { background: #f59e0b; box-shadow: 0 0 6px #f59e0b88; }
-  .dot-watching{ background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
-  .dot-error   { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
-  .dot-connected   { background: #22c55e; }
-  .dot-disconnected{ background: #ef4444; }
+  .dot-idle     { background: #64748b; }
+  .dot-running  { background: #f59e0b; box-shadow: 0 0 6px #f59e0b88; }
+  .dot-watching { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+  .dot-error    { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
+  .dot-connected    { background: #22c55e; }
+  .dot-disconnected { background: #ef4444; }
 
   .status-chip {
     display: flex; align-items: center;
     font-size: 12px; color: #94a3b8;
   }
   .status-chip span { font-weight: 500; color: #cbd5e1; }
+
+  .run-stats {
+    display: flex; gap: 14px;
+    font-size: 12px; color: #475569;
+  }
+  .run-stats .stat-val { color: #cbd5e1; font-weight: 500; }
+  .run-stats .stat-ok  { color: #4ade80; }
+  .run-stats .stat-err { color: #f87171; }
 
   /* ── Toolbar ── */
   .toolbar {
@@ -157,9 +195,12 @@
     font-size: 11px;
     color: #334155;
     display: flex;
-    gap: 16px;
+    align-items: center;
+    justify-content: space-between;
   }
-  .footer span { color: #475569; }
+  .footer-left { display: flex; gap: 16px; }
+  .footer span  { color: #475569; }
+  .footer .version { color: #1e2535; font-size: 10.5px; }
 </style>
 </head>
 <body>
@@ -173,6 +214,19 @@
   <button class="btn icon-only" id="btn-settings" title="Settings">⚙️</button>
 </div>
 
+<!-- Update banner -->
+<div id="update-banner">
+  <div class="banner-left">
+    <span id="update-banner-icon">🆕</span>
+    <span id="update-banner-text">A new version is available.</span>
+    <div id="update-progress-bar"></div>
+  </div>
+  <div class="banner-actions">
+    <button class="btn-banner" id="btn-update-action">Download</button>
+    <button class="btn-banner secondary" id="btn-update-dismiss">Dismiss</button>
+  </div>
+</div>
+
 <!-- Status bar -->
 <div class="status-bar">
   <div class="status-left">
@@ -183,6 +237,9 @@
     <div class="status-chip">
       <span class="status-dot dot-disconnected" id="api-dot"></span>
       API: <span id="api-status-text" style="margin-left:4px">—</span>
+    </div>
+    <div class="run-stats" id="run-stats" style="display:none">
+      <span>Last run: <span class="stat-ok" id="stat-ok">0</span> posted · <span class="stat-err" id="stat-err">0</span> failed</span>
     </div>
   </div>
   <button class="btn" id="btn-test" style="padding:4px 10px; font-size:11px;">Test Connection</button>
@@ -215,7 +272,10 @@
 
 <!-- Footer -->
 <div class="footer">
-  <span>Last run: <span id="last-run">—</span></span>
+  <div class="footer-left">
+    <span>Last activity: <span id="last-run">—</span></span>
+  </div>
+  <span class="version" id="app-version"></span>
 </div>
 
 <script src="dashboard.js"></script>

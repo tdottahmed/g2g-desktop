@@ -2,20 +2,23 @@ const api = window.electronAPI;
 
 // ── Element refs ──────────────────────────────────────────────────────────────
 
-const elApiUrl      = document.getElementById('api-url');
-const elApiKey      = document.getElementById('api-key');
-const elSlowMo      = document.getElementById('slow-mo');
-const elInterval    = document.getElementById('watch-interval');
-const elHeadless    = document.getElementById('headless');
-const elStartWin    = document.getElementById('start-with-windows');
-const elTestResult  = document.getElementById('test-result');
-const elUnsavedDot  = document.getElementById('unsaved-dot');
-const elBanner      = document.getElementById('first-run-banner');
-const elBtnBack     = document.getElementById('btn-back');
-const elBtnSave     = document.getElementById('btn-save');
-const elBtnTest     = document.getElementById('btn-test');
-const elBtnGo       = document.getElementById('btn-goto-dashboard');
-const elBtnEye      = document.getElementById('btn-eye');
+const elApiUrl         = document.getElementById('api-url');
+const elApiKey         = document.getElementById('api-key');
+const elSlowMo         = document.getElementById('slow-mo');
+const elInterval       = document.getElementById('watch-interval');
+const elHeadless       = document.getElementById('headless');
+const elStartWin       = document.getElementById('start-with-windows');
+const elTestResult     = document.getElementById('test-result');
+const elUnsavedDot     = document.getElementById('unsaved-dot');
+const elBanner         = document.getElementById('first-run-banner');
+const elBtnBack        = document.getElementById('btn-back');
+const elBtnSave        = document.getElementById('btn-save');
+const elBtnTest        = document.getElementById('btn-test');
+const elBtnGo          = document.getElementById('btn-goto-dashboard');
+const elBtnEye         = document.getElementById('btn-eye');
+const elVersionLabel   = document.getElementById('app-version-label');
+const elBtnCheckUpdate = document.getElementById('btn-check-update');
+const elUpdateStatusBox= document.getElementById('update-status-box');
 
 let isFirstRun = false;
 let isDirty    = false;
@@ -85,7 +88,6 @@ function collectForm() {
 function showTestResult(state, msg) {
     elTestResult.className = `${state}`;
     elTestResult.innerHTML = msg;
-    // force display (CSS uses display:flex for ok/fail/testing, display:none otherwise)
 }
 
 function hideTestResult() {
@@ -93,10 +95,45 @@ function hideTestResult() {
     elTestResult.innerHTML = '';
 }
 
+// ── Update status box ─────────────────────────────────────────────────────────
+
+function showUpdateStatus(text, bg, border, color) {
+    elUpdateStatusBox.style.cssText = `display:block; background:${bg}; border:1px solid ${border}; color:${color};`;
+    elUpdateStatusBox.textContent = text;
+}
+
+api.onUpdateStatus(({ state, version }) => {
+    if (state === 'checking') {
+        showUpdateStatus('Checking for updates…', '#1c1a08', '#713f12', '#fbbf24');
+        elBtnCheckUpdate.disabled = true;
+    } else if (state === 'available') {
+        showUpdateStatus(`Version ${version} is available! Go to Dashboard to download.`, '#052e16', '#166534', '#4ade80');
+        elBtnCheckUpdate.disabled = false;
+    } else if (state === 'not-available') {
+        showUpdateStatus(`You're up to date (v${version}).`, '#0f172a', '#1e2535', '#64748b');
+        elBtnCheckUpdate.disabled = false;
+    } else if (state === 'downloaded') {
+        showUpdateStatus(`Version ${version} downloaded. Restart the app to install.`, '#052e16', '#166534', '#4ade80');
+        elBtnCheckUpdate.disabled = false;
+    } else if (state === 'error') {
+        showUpdateStatus('Update check failed. Check your internet connection.', '#2d0505', '#7f1d1d', '#f87171');
+        elBtnCheckUpdate.disabled = false;
+    }
+});
+
+elBtnCheckUpdate.addEventListener('click', async () => {
+    elBtnCheckUpdate.disabled = true;
+    showUpdateStatus('Checking for updates…', '#1c1a08', '#713f12', '#fbbf24');
+    await api.updateCheck();
+});
+
 // ── Load config on open ───────────────────────────────────────────────────────
 
 (async () => {
-    const cfg = await api.configGet();
+    const [cfg, version] = await Promise.all([
+        api.configGet(),
+        api.appVersion(),
+    ]);
 
     elApiUrl.value   = cfg.LARAVEL_API_URL || '';
     elApiKey.value   = cfg.API_KEY || '';
@@ -105,14 +142,16 @@ function hideTestResult() {
     elHeadless.checked  = Boolean(cfg.HEADLESS);
     elStartWin.checked  = Boolean(cfg.startWithWindows);
 
+    if (version) elVersionLabel.textContent = `Version ${version}`;
+
     isFirstRun = !cfg.configured;
 
     if (isFirstRun) {
-        elBanner.style.display = 'block';
+        elBanner.style.display  = 'block';
         elBtnBack.style.display = 'none';
     }
 
-    markClean(); // ensure dot is hidden after initial population
+    markClean();
 })();
 
 // ── API key eye toggle ────────────────────────────────────────────────────────
@@ -139,7 +178,6 @@ elBtnSave.addEventListener('click', async () => {
     markClean();
 
     if (!isFirstRun) {
-        // Briefly flash the button green for returning users
         elBtnSave.classList.add('success');
         elBtnSave.textContent = '✅ Saved';
         setTimeout(() => {
@@ -154,7 +192,6 @@ elBtnSave.addEventListener('click', async () => {
 elBtnTest.addEventListener('click', async () => {
     if (!validate()) return;
 
-    // Persist current form values before testing
     await api.configSet(collectForm());
     markClean();
 
@@ -172,13 +209,11 @@ elBtnTest.addEventListener('click', async () => {
         showTestResult('ok', '✅ &nbsp;Connected successfully to your Laravel server.');
         document.getElementById('fg-api-url').classList.add('has-success');
         document.getElementById('fg-api-key').classList.add('has-success');
-
-        // Reveal "Go to Dashboard" after a successful test
         elBtnGo.style.display = 'inline-flex';
 
         if (isFirstRun) {
             isFirstRun = false;
-            elBtnBack.style.display = '';  // reveal back button now
+            elBtnBack.style.display = '';
         }
     } else {
         showTestResult('fail', `❌ &nbsp;${escapeHtml(res.error)}`);

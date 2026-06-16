@@ -1,4 +1,4 @@
-const { Tray, Menu, nativeImage, app } = require('electron');
+const { Tray, Menu, nativeImage, app, shell } = require('electron');
 const { STATUS_ICONS } = require('./icon-generator');
 const runnerManager = require('./runner-manager');
 
@@ -13,9 +13,11 @@ for (const [key, buf] of Object.entries(STATUS_ICONS)) {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-let tray        = null;
-let getWindow   = null;
-let curStatus   = 'idle';
+let tray         = null;
+let getWindow    = null;
+let curStatus    = 'idle';
+let updateState  = null; // null | 'checking' | 'available' | 'downloaded'
+let updateVersion = '';
 
 // ── Context menu builder ──────────────────────────────────────────────────────
 
@@ -23,14 +25,39 @@ function buildMenu() {
     const isRunning  = curStatus === 'running' || curStatus === 'watching';
     const isWatching = curStatus === 'watching';
 
+    // Update menu item label and behaviour depends on current update state
+    let updateItem;
+    if (updateState === 'checking') {
+        updateItem = { label: '🔄  Checking for updates…', enabled: false };
+    } else if (updateState === 'available' || updateState === 'downloaded') {
+        const label = updateState === 'downloaded'
+            ? `⬇️  Install update ${updateVersion} (restart required)`
+            : `🆕  Update ${updateVersion} available — click to download`;
+        updateItem = {
+            label,
+            click: () => {
+                if (updateState === 'downloaded') {
+                    require('./updater').installUpdate();
+                } else {
+                    // Open GitHub releases page in default browser
+                    const cfg = require('./config-store').getAll();
+                    const owner = 'GITHUB_OWNER'; // replace with real owner if known
+                    shell.openExternal(`https://github.com/${owner}/g2g-automation-desktop/releases/latest`);
+                }
+            },
+        };
+    } else {
+        updateItem = {
+            label: '🔄  Check for Updates',
+            click: () => require('./updater').checkForUpdates(true),
+        };
+    }
+
     return Menu.buildFromTemplate([
-        { label: 'G2G Automation', enabled: false },
+        { label: `G2G Automation  v${app.getVersion()}`, enabled: false },
         { type: 'separator' },
 
-        {
-            label: 'Open Dashboard',
-            click: showWindow,
-        },
+        { label: 'Open Dashboard', click: showWindow },
 
         { type: 'separator' },
 
@@ -63,12 +90,13 @@ function buildMenu() {
 
         { type: 'separator' },
 
+        updateItem,
+
+        { type: 'separator' },
+
         {
             label: 'Quit',
-            click: () => {
-                app.isQuitting = true;
-                app.quit();
-            },
+            click: () => { app.isQuitting = true; app.quit(); },
         },
     ]);
 }
@@ -91,6 +119,12 @@ function setStatus(status) {
     tray.setContextMenu(buildMenu());
 }
 
+function setUpdateState(state, version = '') {
+    updateState   = state;
+    updateVersion = version;
+    if (tray) tray.setContextMenu(buildMenu());
+}
+
 function statusLabel(s) {
     return { idle: 'Idle', running: 'Running…', watching: 'Watching', error: 'Error' }[s] ?? s;
 }
@@ -102,10 +136,7 @@ function createTray(getWindowFn) {
     tray.setToolTip('G2G Automation — Idle');
     tray.setContextMenu(buildMenu());
 
-    // Left-click on tray icon → show / toggle window
     tray.on('click', showWindow);
-
-    // Double-click on Windows also shows window
     tray.on('double-click', showWindow);
 
     return tray;
@@ -115,4 +146,4 @@ function destroyTray() {
     if (tray) { tray.destroy(); tray = null; }
 }
 
-module.exports = { createTray, destroyTray, setStatus, showWindow };
+module.exports = { createTray, destroyTray, setStatus, setUpdateState, showWindow };

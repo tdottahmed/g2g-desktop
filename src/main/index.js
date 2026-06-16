@@ -4,6 +4,7 @@ const { registerIpcHandlers } = require('./ipc-handlers');
 const configStore = require('./config-store');
 const trayManager = require('./tray');
 const setup       = require('./setup');
+const updater     = require('./updater');
 
 // ── Single-instance lock ──────────────────────────────────────────────────────
 
@@ -47,7 +48,10 @@ function createWindow() {
 
     mainWindow.loadFile(path.join(__dirname, '../renderer', getStartPage()));
 
-    mainWindow.once('ready-to-show', () => mainWindow.show());
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.show();
+        setTimeout(() => updater.checkForUpdates(), 5000);
+    });
 
     // Close → hide to tray (unless app.isQuitting is set by tray Quit action)
     mainWindow.on('close', (e) => {

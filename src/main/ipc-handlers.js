@@ -1,16 +1,17 @@
-const { ipcMain, app } = require('electron');
+const { ipcMain, app, shell } = require('electron');
 const configStore   = require('./config-store');
 const runnerManager = require('./runner-manager');
 const tray          = require('./tray');
 const notify        = require('./notifications');
 const setup         = require('./setup');
+const updater       = require('./updater');
 
 // ── Log-parsing state (per run cycle) ────────────────────────────────────────
 
 let runSuccess = 0;
 let runFailed  = 0;
 
-function parseLogLine(line) {
+function parseLogLine(line, getWindow) {
     // Start of a fetch cycle → reset counters
     if (line.includes('Fetching pending templates')) {
         runSuccess = 0;
@@ -22,14 +23,17 @@ function parseLogLine(line) {
     if (line.includes('Reported success for template')) { runSuccess++; return; }
     if (/Template \d+ failed:/i.test(line))             { runFailed++;  return; }
 
-    // Run finished → fire summary notification
+    // Run finished → fire summary notification + send stats to renderer
     if (line.includes('Run complete')) {
         notify.notifyRunComplete(runSuccess, runFailed);
+        const win = getWindow();
+        if (win && !win.isDestroyed()) {
+            win.webContents.send('run:complete', { success: runSuccess, failed: runFailed });
+        }
         return;
     }
 
-    // Auth failure (stderr — comes in as "[err] ❌ Authentication failed for …")
-    // Use \S+ and strip trailing period so "user@example.com." becomes "user@example.com"
+    // Auth failure
     const authMatch = line.match(/Authentication failed for (\S+)/);
     if (authMatch) { notify.notifyAuthFailed(authMatch[1].replace(/\.$/, '')); return; }
 
@@ -49,6 +53,10 @@ function parseLogLine(line) {
 // ── IPC handlers ──────────────────────────────────────────────────────────────
 
 function registerIpcHandlers(getWindow) {
+    // ── App info ──────────────────────────────────────────────────────────────
+
+    ipcMain.handle('app:version', () => app.getVersion());
+
     // ── Config ────────────────────────────────────────────────────────────────
 
     ipcMain.handle('config:get', () => configStore.getAll());
@@ -127,6 +135,18 @@ function registerIpcHandlers(getWindow) {
         })
     );
 
+    // ── Auto-update ───────────────────────────────────────────────────────────
+
+    ipcMain.handle('update:check', () => updater.checkForUpdates(true));
+    ipcMain.handle('update:download', () => updater.downloadUpdate());
+    ipcMain.handle('update:install', () => updater.installUpdate());
+    ipcMain.handle('update:open-releases', () => {
+        shell.openExternal('https://github.com/GITHUB_OWNER/g2g-automation-desktop/releases/latest');
+    });
+
+    // Forward updater events to the renderer and tray
+    updater.setGetWindow(getWindow);
+
     // ── Navigation ────────────────────────────────────────────────────────────
 
     ipcMain.handle('navigate', (_e, page) => {
@@ -140,12 +160,9 @@ function registerIpcHandlers(getWindow) {
     // ── Wire runner output → renderer + notification parser ───────────────────
 
     runnerManager.setLogCallback((line) => {
-        // Forward to renderer
         const win = getWindow();
         if (win && !win.isDestroyed()) win.webContents.send('log', line);
-
-        // Parse for notification triggers
-        parseLogLine(line);
+        parseLogLine(line, getWindow);
     });
 
     // ── Wire status changes → renderer + tray + watch notifications ───────────
@@ -153,14 +170,11 @@ function registerIpcHandlers(getWindow) {
     let prevStatus = 'idle';
 
     runnerManager.setStatusCallback((status) => {
-        // Update renderer
         const win = getWindow();
         if (win && !win.isDestroyed()) win.webContents.send('status-change', status);
 
-        // Update tray icon + context menu
         tray.setStatus(status);
 
-        // Watch-mode lifecycle notifications (silent — informational only)
         const cfg = configStore.getAll();
         if (status === 'watching' && prevStatus !== 'watching') {
             notify.notifyWatchStarted(cfg.WATCH_INTERVAL_SECONDS || 60);
@@ -170,6 +184,15 @@ function registerIpcHandlers(getWindow) {
 
         prevStatus = status;
     });
+
+    // Mirror updater events to the tray so it stays in sync
+    const { autoUpdater } = require('electron-updater');
+
+    autoUpdater.on('checking-for-update', () => tray.setUpdateState('checking'));
+    autoUpdater.on('update-available', (info) => tray.setUpdateState('available', info.version));
+    autoUpdater.on('update-not-available', () => tray.setUpdateState(null));
+    autoUpdater.on('update-downloaded', (info) => tray.setUpdateState('downloaded', info.version));
+    autoUpdater.on('error', () => tray.setUpdateState(null));
 }
 
 module.exports = { registerIpcHandlers };

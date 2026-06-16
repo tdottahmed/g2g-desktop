@@ -14,6 +14,7 @@
   "dependencies": {
     "dotenv": "^17.0.0",
     "electron-store": "^8.2.0",
+    "electron-updater": "^6.8.9",
     "playwright": "^1.55.0"
   },
   "devDependencies": {
@@ -39,13 +40,27 @@
       {
         "from": "automation/",
         "to": "automation",
-        "filter": ["**/*", "!cookies/**", "!.env"]
+        "filter": [
+          "**/*",
+          "!cookies/**",
+          "!.env"
+        ]
       }
     ],
     "win": {
       "target": [
-        { "target": "nsis",     "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "assets/icon.ico",
       "requestedExecutionLevel": "asInvoker"
@@ -63,6 +78,12 @@
     },
     "portable": {
       "artifactName": "${productName} Portable ${version}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "GITHUB_OWNER",
+      "repo": "g2g-automation-desktop",
+      "releaseType": "release"
     }
   }
 }
