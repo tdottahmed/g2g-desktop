@@ -1,0 +1,57 @@
+{
+  "name": "g2g-automation-desktop",
+  "version": "1.0.0",
+  "description": "G2G.com offer automation — Windows desktop app",
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "install:browsers": "npx playwright install chromium"
+  },
+  "dependencies": {
+    "dotenv": "^17.0.0",
+    "electron-store": "^8.2.0",
+    "playwright": "^1.55.0"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.g2g.automation",
+    "productName": "G2G Automation",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "G2G Automation"
+    },
+    "extraResources": [
+      {
+        "from": "automation/",
+        "to": "automation",
+        "filter": [
+          "**/*",
+          "!cookies/**"
+        ]
+      }
+    ],
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "node_modules/**/*"
+    ]
+  }
+}
