@@ -34,18 +34,10 @@
       "src/**/*",
       "assets/**/*",
       "node_modules/**/*",
-      "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "automation/",
-        "to": "automation",
-        "filter": [
-          "**/*",
-          "!cookies/**",
-          "!.env"
-        ]
-      }
+      "package.json",
+      "automation/**/*",
+      "!automation/cookies/**",
+      "!automation/.env"
     ],
     "win": {
       "target": [

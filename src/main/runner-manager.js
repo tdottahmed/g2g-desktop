@@ -13,7 +13,7 @@ const STATUS = {
 
 function getAutomationDir() {
     return app.isPackaged
-        ? path.join(process.resourcesPath, 'automation')
+        ? path.join(app.getAppPath(), 'automation')
         : path.join(__dirname, '../../automation');
 }
 
@@ -42,7 +42,6 @@ function buildEnv(config) {
         // Packaged: use userData for cookies and browsers (automation dir is read-only).
         return {
             ...base,
-            NODE_PATH:                path.join(process.resourcesPath, 'app', 'node_modules'),
             COOKIES_DIR:              getCookiesDir(),
             PLAYWRIGHT_BROWSERS_PATH: getBrowsersDir(),
         };
