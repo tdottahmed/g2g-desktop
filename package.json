@@ -81,8 +81,8 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "GITHUB_OWNER",
-      "repo": "g2g-automation-desktop",
+      "owner": "tdottahmed",
+      "repo": "g2g-desktop",
       "releaseType": "release"
     }
   }
