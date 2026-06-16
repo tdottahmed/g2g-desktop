@@ -5,8 +5,10 @@
   "main": "src/main/index.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder",
-    "build:win": "electron-builder --win",
+    "icon": "node scripts/build-icon.js",
+    "build": "node scripts/build-icon.js && electron-builder",
+    "build:win": "node scripts/build-icon.js && electron-builder --win",
+    "build:dir": "node scripts/build-icon.js && electron-builder --dir",
     "install:browsers": "npx playwright install chromium"
   },
   "dependencies": {
@@ -21,37 +23,46 @@
   "build": {
     "appId": "com.g2g.automation",
     "productName": "G2G Automation",
+    "asar": false,
+    "artifactName": "${productName} Setup ${version}.${ext}",
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "assets"
     },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "automation/",
+        "to": "automation",
+        "filter": ["**/*", "!cookies/**", "!.env"]
+      }
+    ],
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        { "target": "nsis",     "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
       ],
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "G2G Automation"
+      "shortcutName": "G2G Automation",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "deleteAppDataOnUninstall": false
     },
-    "extraResources": [
-      {
-        "from": "automation/",
-        "to": "automation",
-        "filter": [
-          "**/*",
-          "!cookies/**"
-        ]
-      }
-    ],
-    "files": [
-      "src/**/*",
-      "assets/**/*",
-      "node_modules/**/*"
-    ]
+    "portable": {
+      "artifactName": "${productName} Portable ${version}.${ext}"
+    }
   }
 }

@@ -21,4 +21,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Navigation
     navigate: (page) => ipcRenderer.invoke('navigate', page),
+
+    // Setup (first-run browser installation)
+    setupCheck:   () => ipcRenderer.invoke('setup:check'),
+    setupInstall: () => ipcRenderer.invoke('setup:install'),
+    onSetupLog:   (cb) => ipcRenderer.on('setup:log', (_e, line) => cb(line)),
 });

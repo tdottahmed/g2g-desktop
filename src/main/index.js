@@ -3,6 +3,7 @@ const path = require('path');
 const { registerIpcHandlers } = require('./ipc-handlers');
 const configStore = require('./config-store');
 const trayManager = require('./tray');
+const setup       = require('./setup');
 
 // ── Single-instance lock ──────────────────────────────────────────────────────
 
@@ -20,6 +21,14 @@ if (!gotLock) {
 
 let mainWindow = null;
 
+function getStartPage() {
+    // In packaged mode: browser must be installed before anything else
+    if (app.isPackaged && !setup.isBrowserInstalled()) return 'setup.html';
+    // First run: send to settings
+    if (!configStore.isConfigured()) return 'settings.html';
+    return 'dashboard.html';
+}
+
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 960,
@@ -33,11 +42,10 @@ function createWindow() {
         },
         title: 'G2G Automation',
         show: false,
-        backgroundColor: '#0f1117',
+        backgroundColor: '#0a0d14',
     });
 
-    const startPage = configStore.isConfigured() ? 'dashboard.html' : 'settings.html';
-    mainWindow.loadFile(path.join(__dirname, '../renderer', startPage));
+    mainWindow.loadFile(path.join(__dirname, '../renderer', getStartPage()));
 
     mainWindow.once('ready-to-show', () => mainWindow.show());
 

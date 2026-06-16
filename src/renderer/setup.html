@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+<title>Setup — G2G Automation</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0a0d14;
+    color: #e2e8f0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    padding: 32px;
+    -webkit-app-region: drag;
+  }
+
+  .card {
+    background: #161b27;
+    border: 1px solid #1e2535;
+    border-radius: 14px;
+    padding: 40px 44px;
+    width: 100%;
+    max-width: 480px;
+    -webkit-app-region: no-drag;
+  }
+
+  /* ── Logo area ── */
+  .logo { text-align: center; margin-bottom: 24px; }
+  .logo-icon { font-size: 48px; line-height: 1; display: block; margin-bottom: 12px; }
+  .logo-title {
+    font-size: 22px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.3px;
+  }
+  .logo-sub { font-size: 13px; color: #475569; margin-top: 4px; }
+
+  /* ── Divider ── */
+  .divider { height: 1px; background: #1e2535; margin: 24px 0; }
+
+  /* ── Setup body ── */
+  .setup-title { font-size: 15px; font-weight: 600; color: #cbd5e1; margin-bottom: 8px; }
+  .setup-desc  { font-size: 13px; color: #64748b; line-height: 1.6; margin-bottom: 24px; }
+  .setup-desc strong { color: #94a3b8; }
+
+  /* ── Progress area ── */
+  #progress-area { display: none; margin-bottom: 20px; }
+
+  .progress-label {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; color: #64748b; margin-bottom: 8px;
+  }
+  .progress-label span { color: #94a3b8; }
+
+  .progress-bar-track {
+    height: 6px; background: #1e2535; border-radius: 6px; overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%; border-radius: 6px;
+    background: linear-gradient(90deg, #2563eb, #60a5fa);
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+  .progress-bar-fill.indeterminate {
+    width: 40%;
+    animation: slide 1.4s ease-in-out infinite;
+  }
+  @keyframes slide {
+    0%   { margin-left: -40%; }
+    100% { margin-left: 100%; }
+  }
+
+  /* ── Log box ── */
+  #log-box {
+    display: none;
+    background: #0a0d14;
+    border: 1px solid #1e2535;
+    border-radius: 6px;
+    padding: 10px 12px;
+    height: 120px;
+    overflow-y: auto;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 11.5px;
+    color: #64748b;
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+  #log-box::-webkit-scrollbar { width: 4px; }
+  #log-box::-webkit-scrollbar-thumb { background: #1e2535; border-radius: 2px; }
+  .log-line { color: #475569; }
+  .log-line.ok  { color: #4ade80; }
+  .log-line.err { color: #f87171; }
+
+  /* ── Success state ── */
+  #success-area {
+    display: none;
+    text-align: center;
+    padding: 16px 0 8px;
+  }
+  .success-icon { font-size: 36px; display: block; margin-bottom: 10px; }
+  .success-text { font-size: 14px; font-weight: 600; color: #4ade80; margin-bottom: 4px; }
+  .success-sub  { font-size: 12px; color: #475569; }
+
+  /* ── Error state ── */
+  #error-area {
+    display: none;
+    background: #2d0505;
+    border: 1px solid #7f1d1d;
+    border-radius: 7px;
+    padding: 12px 14px;
+    font-size: 12.5px;
+    color: #f87171;
+    margin-bottom: 20px;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 11px 18px;
+    border: 1px solid #2d3748;
+    border-radius: 8px;
+    background: #1e2535;
+    color: #cbd5e1;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:hover   { background: #263044; border-color: #3d4f6e; color: #f1f5f9; }
+  .btn:active  { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn.primary  { background: #1d4ed8; border-color: #2563eb; color: #fff; }
+  .btn.primary:hover { background: #2563eb; }
+  .btn.success  { background: #14532d; border-color: #16a34a; color: #4ade80; }
+  .btn.success:hover { background: #166534; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <!-- Logo -->
+  <div class="logo">
+    <span class="logo-icon">🤖</span>
+    <div class="logo-title">G2G Automation</div>
+    <div class="logo-sub">One-time setup required</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Setup prompt (shown before install starts) -->
+  <div id="prompt-area">
+    <div class="setup-title">Install Chromium Browser</div>
+    <div class="setup-desc">
+      G2G Automation uses Chromium to control the browser and post your offers automatically.<br><br>
+      This is a <strong>one-time download (~130 MB)</strong> and won't affect your existing Chrome installation.
+    </div>
+    <button class="btn primary" id="btn-install">▶ Install Browser</button>
+  </div>
+
+  <!-- Progress (shown during install) -->
+  <div id="progress-area">
+    <div class="progress-label">
+      <span id="progress-label-text">Downloading Chromium…</span>
+      <span id="progress-pct"></span>
+    </div>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill indeterminate" id="progress-fill"></div>
+    </div>
+  </div>
+
+  <!-- Log output (shown during install) -->
+  <div id="log-box"></div>
+
+  <!-- Error (shown if install fails) -->
+  <div id="error-area"></div>
+
+  <!-- Success (shown after install) -->
+  <div id="success-area">
+    <span class="success-icon">✅</span>
+    <div class="success-text">Chromium installed successfully!</div>
+    <div class="success-sub">The automation is ready to use.</div>
+  </div>
+
+  <!-- Continue button (hidden until done) -->
+  <button class="btn success" id="btn-continue" style="display:none; margin-top:16px">
+    Continue →
+  </button>
+
+  <!-- Retry button (hidden unless failed) -->
+  <button class="btn" id="btn-retry" style="display:none; margin-top:12px">
+    ↺ Retry
+  </button>
+</div>
+
+<script src="setup.js"></script>
+</body>
+</html>
