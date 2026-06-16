@@ -9,7 +9,7 @@
 
   body {
     font-family: 'Segoe UI', system-ui, sans-serif;
-    background: #0f1117;
+    background: #0a0d14;
     color: #e2e8f0;
     height: 100vh;
     display: flex;
@@ -18,6 +18,7 @@
     user-select: none;
   }
 
+  /* ── Header ── */
   .header {
     display: flex;
     align-items: center;
@@ -25,46 +26,86 @@
     padding: 14px 20px;
     background: #161b27;
     border-bottom: 1px solid #1e2535;
+    flex-shrink: 0;
     -webkit-app-region: drag;
   }
   .header-left { display: flex; align-items: center; gap: 10px; }
-  .app-title { font-size: 15px; font-weight: 600; color: #f1f5f9; }
+  .header-title { font-size: 15px; font-weight: 600; color: #f1f5f9; }
   .header button { -webkit-app-region: no-drag; }
 
+  /* ── First-run banner ── */
+  #first-run-banner {
+    display: none;
+    background: linear-gradient(90deg, #1e3a5f 0%, #1a2f4a 100%);
+    border-bottom: 1px solid #2563eb44;
+    padding: 14px 24px;
+    flex-shrink: 0;
+  }
+  .banner-inner { display: flex; align-items: flex-start; gap: 14px; }
+  .banner-icon  { font-size: 26px; line-height: 1; flex-shrink: 0; margin-top: 2px; }
+  .banner-title { font-size: 14px; font-weight: 600; color: #93c5fd; margin-bottom: 3px; }
+  .banner-body  { font-size: 12.5px; color: #64a8e8; line-height: 1.5; }
+
+  /* ── Scrollable content ── */
   .content {
     flex: 1;
     overflow-y: auto;
-    padding: 28px 32px;
+    padding: 20px 24px 8px;
   }
   .content::-webkit-scrollbar { width: 6px; }
   .content::-webkit-scrollbar-thumb { background: #1e2535; border-radius: 3px; }
 
-  .section-title {
+  /* ── Cards ── */
+  .card {
+    background: #161b27;
+    border: 1px solid #1e2535;
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 14px;
+  }
+  .card-title {
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.9px;
     text-transform: uppercase;
     color: #475569;
     margin-bottom: 16px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #1e2535;
+    display: flex;
+    align-items: center;
+    gap: 7px;
   }
 
-  .form-group {
-    margin-bottom: 20px;
-  }
+  /* ── Form fields ── */
+  .form-group { margin-bottom: 16px; }
+  .form-group:last-child { margin-bottom: 0; }
+
   label {
     display: block;
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 500;
     color: #94a3b8;
     margin-bottom: 6px;
   }
-  .hint {
-    font-size: 11px;
+  label .required { color: #f87171; margin-left: 2px; }
+
+  .input-wrap { position: relative; }
+  .input-wrap input { padding-right: 38px; }
+
+  .eye-btn {
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 36px;
+    background: none;
+    border: none;
+    cursor: pointer;
     color: #475569;
-    margin-top: 4px;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s;
   }
+  .eye-btn:hover { color: #94a3b8; }
 
   input[type="text"],
   input[type="password"],
@@ -72,35 +113,57 @@
   input[type="url"] {
     width: 100%;
     padding: 9px 12px;
-    background: #12161f;
+    background: #0f1117;
     border: 1px solid #1e2535;
     border-radius: 6px;
     color: #e2e8f0;
     font-size: 13px;
     font-family: inherit;
     outline: none;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
-  input:focus { border-color: #2563eb; background: #161b27; }
-  input::placeholder { color: #334155; }
+  input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px #3b82f61a;
+    background: #12161f;
+  }
+  input::placeholder { color: #2d3748; }
 
+  /* validation states */
+  .form-group.has-error input { border-color: #ef4444; }
+  .form-group.has-error input:focus { box-shadow: 0 0 0 3px #ef44441a; }
+  .form-group.has-success input { border-color: #22c55e; }
+
+  .field-error {
+    display: none;
+    font-size: 11.5px;
+    color: #f87171;
+    margin-top: 5px;
+  }
+  .form-group.has-error .field-error { display: block; }
+
+  .hint { font-size: 11px; color: #334155; margin-top: 5px; }
+  .hint code { background: #1e2535; padding: 1px 5px; border-radius: 3px; font-family: monospace; }
+
+  /* ── Two-column grid ── */
+  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  /* ── Toggle rows ── */
   .toggle-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 0;
-    border-bottom: 1px solid #12161f;
+    padding: 11px 0;
   }
+  .toggle-row + .toggle-row { border-top: 1px solid #12161f; }
   .toggle-label { display: flex; flex-direction: column; gap: 3px; }
   .toggle-label span { font-size: 13px; font-weight: 500; color: #cbd5e1; }
   .toggle-label small { font-size: 11px; color: #475569; }
 
-  .toggle {
-    position: relative; width: 44px; height: 24px; cursor: pointer;
-  }
-  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle { position: relative; width: 44px; height: 24px; cursor: pointer; }
+  .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
   .toggle .slider {
-    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    position: absolute; inset: 0;
     background: #1e2535; border-radius: 24px; transition: 0.2s;
   }
   .toggle .slider::before {
@@ -111,12 +174,41 @@
   .toggle input:checked + .slider { background: #1d4ed8; }
   .toggle input:checked + .slider::before { transform: translateX(20px); background: #fff; }
 
-  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  /* ── Test result box ── */
+  #test-result {
+    display: none;
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 7px;
+    font-size: 12.5px;
+    font-weight: 500;
+    display: none;
+    align-items: center;
+    gap: 8px;
+  }
+  #test-result.ok {
+    display: flex;
+    background: #052e16;
+    border: 1px solid #166534;
+    color: #4ade80;
+  }
+  #test-result.fail {
+    display: flex;
+    background: #2d0505;
+    border: 1px solid #7f1d1d;
+    color: #f87171;
+  }
+  #test-result.testing {
+    display: flex;
+    background: #1c1a08;
+    border: 1px solid #713f12;
+    color: #fbbf24;
+  }
 
   /* ── Buttons ── */
   .btn {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 9px 18px;
+    padding: 9px 16px;
     border: 1px solid #2d3748;
     border-radius: 6px;
     background: #1e2535;
@@ -125,102 +217,145 @@
     font-weight: 500;
     cursor: pointer;
     transition: all 0.15s;
+    white-space: nowrap;
   }
-  .btn:hover  { background: #263044; border-color: #3d4f6e; color: #f1f5f9; }
-  .btn:active { transform: scale(0.97); }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn.primary { background: #1d4ed8; border-color: #2563eb; color: #fff; }
+  .btn:hover   { background: #263044; border-color: #3d4f6e; color: #f1f5f9; }
+  .btn:active  { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn.primary  { background: #1d4ed8; border-color: #2563eb; color: #fff; }
   .btn.primary:hover { background: #2563eb; }
+  .btn.success  { background: #14532d; border-color: #16a34a; color: #4ade80; }
+  .btn.success:hover { background: #166534; }
+  .btn.sm { padding: 6px 12px; font-size: 12px; }
 
-  .action-row {
-    display: flex; align-items: center; gap: 10px;
-    padding: 20px 32px;
+  /* ── Footer ── */
+  .footer {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 24px;
     background: #161b27;
     border-top: 1px solid #1e2535;
   }
-
-  .toast {
+  .footer .spacer { flex: 1; }
+  .unsaved-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #f59e0b;
     display: none;
-    padding: 8px 14px;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 500;
+    margin-right: 2px;
   }
-  .toast.success { background: #14532d; color: #4ade80; border: 1px solid #166534; }
-  .toast.error   { background: #450a0a; color: #f87171; border: 1px solid #7f1d1d; }
+  .unsaved-dot.visible { display: inline-block; }
 </style>
 </head>
 <body>
 
+<!-- Header -->
 <div class="header">
   <div class="header-left">
-    <span>⚙️</span>
-    <span class="app-title">Settings</span>
+    <span style="font-size:17px">⚙️</span>
+    <span class="header-title">Settings</span>
   </div>
-  <button class="btn" id="btn-back">← Dashboard</button>
+  <button class="btn sm" id="btn-back">← Back to Dashboard</button>
 </div>
 
+<!-- First-run welcome banner -->
+<div id="first-run-banner">
+  <div class="banner-inner">
+    <div class="banner-icon">🚀</div>
+    <div>
+      <div class="banner-title">Welcome to G2G Automation!</div>
+      <div class="banner-body">
+        Connect this app to your live Laravel server to start posting offers automatically.<br>
+        Fill in the API URL and Key below, then click <strong>Test Connection</strong> to verify.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Content -->
 <div class="content">
 
-  <div class="section-title">API Connection</div>
+  <!-- Card: API Connection -->
+  <div class="card">
+    <div class="card-title">📡 API Connection</div>
 
-  <div class="form-group">
-    <label for="api-url">Laravel API URL</label>
-    <input type="url" id="api-url" placeholder="https://your-app.com" autocomplete="off" />
-    <div class="hint">No trailing slash. Must match your live Laravel deployment.</div>
+    <div class="form-group" id="fg-api-url">
+      <label for="api-url">Laravel API URL <span class="required">*</span></label>
+      <input type="url" id="api-url" placeholder="https://your-laravel-app.com" autocomplete="off" spellcheck="false" />
+      <div class="field-error" id="err-api-url">API URL is required.</div>
+      <div class="hint">Base URL of your live Laravel deployment — no trailing slash.</div>
+    </div>
+
+    <div class="form-group" id="fg-api-key">
+      <label for="api-key">API Key <span class="required">*</span></label>
+      <div class="input-wrap">
+        <input type="password" id="api-key" placeholder="Paste your API key here" autocomplete="off" spellcheck="false" />
+        <button class="eye-btn" id="btn-eye" tabindex="-1" title="Show / hide key">👁</button>
+      </div>
+      <div class="field-error" id="err-api-key">API Key is required.</div>
+      <div class="hint">Must match <code>API_AUTOMATION_KEY</code> in your Laravel <code>.env</code>.</div>
+    </div>
+
+    <!-- Test connection result — hidden until tested -->
+    <div id="test-result"></div>
   </div>
 
-  <div class="form-group">
-    <label for="api-key">API Key</label>
-    <input type="password" id="api-key" placeholder="••••••••••••••••" autocomplete="off" />
-    <div class="hint">Must match <code>API_AUTOMATION_KEY</code> in your Laravel .env.</div>
+  <!-- Card: Automation -->
+  <div class="card">
+    <div class="card-title">🤖 Automation</div>
+
+    <div class="row-2">
+      <div class="form-group">
+        <label for="watch-interval">Watch Interval <span style="color:#475569;font-weight:400">(seconds)</span></label>
+        <input type="number" id="watch-interval" min="10" max="3600" step="10" placeholder="60" />
+        <div class="hint">How often to poll the API in watch mode.</div>
+      </div>
+      <div class="form-group">
+        <label for="slow-mo">SlowMo <span style="color:#475569;font-weight:400">(ms)</span></label>
+        <input type="number" id="slow-mo" min="0" max="2000" step="10" placeholder="120" />
+        <div class="hint">Delay between Playwright actions. 100–200ms recommended.</div>
+      </div>
+    </div>
+
+    <div class="toggle-row">
+      <div class="toggle-label">
+        <span>Headless Mode</span>
+        <small>Run Chromium invisibly in the background</small>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="headless" />
+        <span class="slider"></span>
+      </label>
+    </div>
   </div>
 
-  <div class="section-title" style="margin-top:28px">Automation Settings</div>
+  <!-- Card: System -->
+  <div class="card">
+    <div class="card-title">🖥 System</div>
 
-  <div class="row-2">
-    <div class="form-group">
-      <label for="slow-mo">SlowMo (ms)</label>
-      <input type="number" id="slow-mo" min="0" max="2000" step="10" placeholder="120" />
-      <div class="hint">Delay between Playwright actions. 100–200ms recommended.</div>
+    <div class="toggle-row">
+      <div class="toggle-label">
+        <span>Start with Windows</span>
+        <small>Launch G2G Automation automatically at login</small>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="start-with-windows" />
+        <span class="slider"></span>
+      </label>
     </div>
-    <div class="form-group">
-      <label for="watch-interval">Watch Interval (seconds)</label>
-      <input type="number" id="watch-interval" min="10" max="3600" step="10" placeholder="60" />
-      <div class="hint">How often to poll the API in watch mode.</div>
-    </div>
-  </div>
-
-  <div class="section-title" style="margin-top:8px">Browser & System</div>
-
-  <div class="toggle-row">
-    <div class="toggle-label">
-      <span>Headless Mode</span>
-      <small>Run Chromium without a visible window</small>
-    </div>
-    <label class="toggle">
-      <input type="checkbox" id="headless" />
-      <span class="slider"></span>
-    </label>
-  </div>
-
-  <div class="toggle-row">
-    <div class="toggle-label">
-      <span>Start with Windows</span>
-      <small>Launch automatically when you log in</small>
-    </div>
-    <label class="toggle">
-      <input type="checkbox" id="start-with-windows" />
-      <span class="slider"></span>
-    </label>
   </div>
 
 </div>
 
-<div class="action-row">
-  <button class="btn primary" id="btn-save">💾 Save Settings</button>
-  <button class="btn" id="btn-test">Test Connection</button>
-  <div class="toast" id="toast"></div>
+<!-- Footer -->
+<div class="footer">
+  <span class="unsaved-dot" id="unsaved-dot"></span>
+  <button class="btn primary" id="btn-save">💾 Save</button>
+  <button class="btn" id="btn-test">🔌 Test Connection</button>
+  <div class="spacer"></div>
+  <button class="btn success" id="btn-goto-dashboard" style="display:none">Go to Dashboard →</button>
 </div>
 
 <script src="settings.js"></script>
