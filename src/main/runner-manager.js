@@ -30,26 +30,28 @@ function getBrowsersDir() {
 function buildEnv(config) {
     const base = {
         ...process.env,
-        LARAVEL_API_URL:         config.LARAVEL_API_URL || '',
-        API_KEY:                 config.API_KEY || '',
-        HEADLESS:                config.HEADLESS ? 'true' : 'false',
-        SLOW_MO:                 String(config.SLOW_MO ?? 120),
-        WATCH_INTERVAL_SECONDS:  String(config.WATCH_INTERVAL_SECONDS ?? 60),
-        G2G_BASE_URL:            config.G2G_BASE_URL || 'https://www.g2g.com',
-        COOKIES_DIR:             getCookiesDir(),
-        PLAYWRIGHT_BROWSERS_PATH: getBrowsersDir(),
+        LARAVEL_API_URL:        config.LARAVEL_API_URL || '',
+        API_KEY:                config.API_KEY || '',
+        HEADLESS:               config.HEADLESS ? 'true' : 'false',
+        SLOW_MO:                String(config.SLOW_MO ?? 120),
+        WATCH_INTERVAL_SECONDS: String(config.WATCH_INTERVAL_SECONDS ?? 60),
+        G2G_BASE_URL:           config.G2G_BASE_URL || 'https://www.g2g.com',
     };
 
     if (app.isPackaged) {
-        // Run Electron binary as a plain Node.js runtime.
-        // With asar:false, node_modules live at resources/app/node_modules.
+        // Packaged: use userData for cookies and browsers (automation dir is read-only).
         return {
             ...base,
-            ELECTRON_RUN_AS_NODE: '1',
-            NODE_PATH: path.join(process.resourcesPath, 'app', 'node_modules'),
+            ELECTRON_RUN_AS_NODE:     '1',
+            NODE_PATH:                path.join(process.resourcesPath, 'app', 'node_modules'),
+            COOKIES_DIR:              getCookiesDir(),
+            PLAYWRIGHT_BROWSERS_PATH: getBrowsersDir(),
         };
     }
 
+    // Dev: leave COOKIES_DIR and PLAYWRIGHT_BROWSERS_PATH unset so runner.js
+    // uses its own defaults — automation/cookies/ and ~/.cache/ms-playwright.
+    // Place cookie files in automation/cookies/<email-prefix>.json.
     return base;
 }
 

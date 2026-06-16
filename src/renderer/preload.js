@@ -14,8 +14,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     runnerStop:   ()     => ipcRenderer.invoke('runner:stop'),
     runnerStatus: ()     => ipcRenderer.invoke('runner:status'),
 
-    // Deleter (delete-all)
-    deleterStart: (mode) => ipcRenderer.invoke('deleter:start', mode),
+    // Deleter (delete all offers for a specific account)
+    deleterStart:   (email) => ipcRenderer.invoke('deleter:start', email),
+    accountsFetch:  ()      => ipcRenderer.invoke('accounts:fetch'),
 
     // Auto-update
     updateCheck:       ()  => ipcRenderer.invoke('update:check'),

@@ -187,6 +187,165 @@
   }
   .log-empty .log-empty-icon { font-size: 32px; }
 
+  /* ── Account Picker Modal ── */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(3px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-backdrop.show { display: flex; }
+
+  .modal {
+    background: #161b27;
+    border: 1px solid #1e2535;
+    border-radius: 12px;
+    width: 460px;
+    max-width: calc(100vw - 40px);
+    max-height: calc(100vh - 80px);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    overflow: hidden;
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid #1e2535;
+    flex-shrink: 0;
+  }
+  .modal-title {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 15px; font-weight: 600; color: #f1f5f9;
+  }
+  .modal-close {
+    background: none; border: none; color: #475569; font-size: 18px;
+    cursor: pointer; padding: 2px 6px; border-radius: 4px; line-height: 1;
+    transition: color 0.15s, background 0.15s;
+  }
+  .modal-close:hover { color: #94a3b8; background: #1e2535; }
+
+  .modal-warning {
+    display: flex; align-items: flex-start; gap: 10px;
+    margin: 14px 20px 0;
+    padding: 10px 12px;
+    background: #2d1a05;
+    border: 1px solid #92400e;
+    border-radius: 7px;
+    font-size: 12.5px;
+    color: #fbbf24;
+    line-height: 1.5;
+    flex-shrink: 0;
+  }
+  .modal-warning-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+
+  .modal-search {
+    padding: 12px 20px 8px;
+    flex-shrink: 0;
+  }
+  .search-input-wrap { position: relative; }
+  .search-icon {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    font-size: 14px; color: #334155; pointer-events: none;
+  }
+  .search-input {
+    width: 100%; padding: 8px 12px 8px 32px;
+    background: #0f1117; border: 1px solid #1e2535; border-radius: 7px;
+    color: #e2e8f0; font-size: 13px; font-family: inherit; outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .search-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px #3b82f61a; }
+  .search-input::placeholder { color: #2d3748; }
+
+  .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 20px 12px;
+    min-height: 80px;
+  }
+  .modal-body::-webkit-scrollbar { width: 5px; }
+  .modal-body::-webkit-scrollbar-thumb { background: #1e2535; border-radius: 3px; }
+
+  /* Loading / error / empty states */
+  .modal-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px 16px;
+    color: #334155;
+    font-size: 13px;
+    gap: 8px;
+    text-align: center;
+  }
+  .modal-state .state-icon { font-size: 28px; }
+  .modal-state.error-state { color: #f87171; }
+
+  /* Account cards */
+  .account-card {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 14px;
+    border: 1px solid #1e2535;
+    border-radius: 8px;
+    margin-bottom: 7px;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .account-card:hover { background: #1a2030; border-color: #2d3748; }
+  .account-card.selected {
+    background: #1a2d4a;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 1px #2563eb33;
+  }
+  .account-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: #1e2535;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; flex-shrink: 0;
+    border: 1.5px solid #2d3748;
+    transition: border-color 0.15s;
+  }
+  .account-card.selected .account-avatar { border-color: #2563eb; background: #1d3a6a; }
+  .account-info { flex: 1; min-width: 0; }
+  .account-email {
+    font-size: 13px; font-weight: 500; color: #e2e8f0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .account-meta { font-size: 11.5px; color: #475569; margin-top: 2px; }
+  .account-meta .meta-active { color: #22c55e; }
+  .account-meta .meta-none   { color: #334155; }
+  .account-radio {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 2px solid #2d3748;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .account-card.selected .account-radio {
+    border-color: #2563eb;
+    background: #2563eb;
+  }
+  .account-card.selected .account-radio::after {
+    content: '';
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #fff;
+    display: block;
+  }
+
+  .modal-footer {
+    display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid #1e2535;
+    flex-shrink: 0;
+    background: #12161f;
+  }
+
   /* ── Footer ── */
   .footer {
     padding: 6px 20px;
@@ -276,6 +435,45 @@
     <span>Last activity: <span id="last-run">—</span></span>
   </div>
   <span class="version" id="app-version"></span>
+</div>
+
+<!-- Account Picker Modal -->
+<div class="modal-backdrop" id="account-modal">
+  <div class="modal">
+
+    <div class="modal-header">
+      <div class="modal-title">
+        <span>🗑️</span>
+        <span>Delete All Offers</span>
+      </div>
+      <button class="modal-close" id="modal-close" title="Cancel">✕</button>
+    </div>
+
+    <div class="modal-warning">
+      <span class="modal-warning-icon">⚠️</span>
+      <span>This will permanently remove <strong>all live offers</strong> from g2g.com for the selected account. This action cannot be undone.</span>
+    </div>
+
+    <div class="modal-search" id="modal-search" style="display:none">
+      <div class="search-input-wrap">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="account-search" type="text" placeholder="Search accounts…" autocomplete="off" />
+      </div>
+    </div>
+
+    <div class="modal-body" id="modal-body">
+      <div class="modal-state" id="modal-loading">
+        <span class="state-icon">⏳</span>
+        <span>Fetching accounts…</span>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" id="modal-cancel">Cancel</button>
+      <button class="btn danger" id="modal-confirm" disabled>🗑️ Delete All Offers</button>
+    </div>
+
+  </div>
 </div>
 
 <script src="dashboard.js"></script>

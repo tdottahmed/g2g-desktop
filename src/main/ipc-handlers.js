@@ -109,14 +109,35 @@ function registerIpcHandlers(getWindow) {
 
     ipcMain.handle('runner:status', () => runnerManager.getStatus());
 
-    // ── Runner: delete all offers ─────────────────────────────────────────────
+    // ── Runner: delete all offers for a specific account ─────────────────────
 
-    ipcMain.handle('deleter:start', (_e, mode = 'run') => {
-        const cfg  = configStore.getAll();
-        const args = ['--api'];
-        if (mode === 'watch') args.push('--watch');
-        const ok = runnerManager.start('delete-offers.js', args, cfg);
+    ipcMain.handle('deleter:start', (_e, email) => {
+        if (!email) return { success: false, error: 'No account selected.' };
+        const cfg = configStore.getAll();
+        // Standalone mode: delete-offers.js <email>
+        const ok  = runnerManager.start('delete-offers.js', [email], cfg);
         return { success: ok };
+    });
+
+    // ── Fetch all user accounts from the Laravel API ──────────────────────────
+
+    ipcMain.handle('accounts:fetch', async () => {
+        const cfg = configStore.getAll();
+        if (!cfg.LARAVEL_API_URL || !cfg.API_KEY) {
+            return { success: false, error: 'API not configured.' };
+        }
+        try {
+            const url = `${cfg.LARAVEL_API_URL.replace(/\/$/, '')}/api/automation/user-accounts`;
+            const res = await fetch(url, {
+                headers: { 'X-Api-Key': cfg.API_KEY, Accept: 'application/json' },
+                signal: AbortSignal.timeout(8000),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const body = await res.json();
+            return { success: true, accounts: body.accounts ?? [] };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
     });
 
     // ── Setup: browser installation ───────────────────────────────────────────

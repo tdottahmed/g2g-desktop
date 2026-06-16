@@ -25,10 +25,21 @@ const updateProgressBar = document.getElementById('update-progress-bar');
 const btnUpdateAction   = document.getElementById('btn-update-action');
 const btnUpdateDismiss  = document.getElementById('btn-update-dismiss');
 
+// ── Account picker modal refs ──────────────────────────────────────────────────
+
+const accountModal   = document.getElementById('account-modal');
+const modalBody      = document.getElementById('modal-body');
+const modalLoading   = document.getElementById('modal-loading');
+const modalSearch    = document.getElementById('modal-search');
+const modalConfirm   = document.getElementById('modal-confirm');
+const modalCancel    = document.getElementById('modal-cancel');
+const modalCloseBtn  = document.getElementById('modal-close');
+const accountSearch  = document.getElementById('account-search');
+
 const btnRun      = document.getElementById('btn-run');
 const btnWatch    = document.getElementById('btn-watch');
 const btnStop     = document.getElementById('btn-stop');
-const btnDelete   = document.getElementById('btn-delete');
+const btnDelete    = document.getElementById('btn-delete');
 const btnClear    = document.getElementById('btn-clear');
 const btnTest     = document.getElementById('btn-test');
 const btnSettings = document.getElementById('btn-settings');
@@ -177,11 +188,7 @@ btnStop.addEventListener('click', async () => {
     await api.runnerStop();
 });
 
-btnDelete.addEventListener('click', async () => {
-    if (!confirm('Delete ALL live offers from g2g.com for all queued accounts?')) return;
-    const { success } = await api.deleterStart('run');
-    if (!success) appendLog('[app] Could not start deleter — runner may already be running.');
-});
+btnDelete.addEventListener('click', () => openAccountModal());
 
 btnClear.addEventListener('click', () => {
     logPanel.innerHTML = '';
@@ -209,6 +216,138 @@ btnTest.addEventListener('click', async () => {
     }
 });
 
+// ── Account picker modal ──────────────────────────────────────────────────────
+
+let allAccounts    = [];
+let selectedEmail  = null;
+
+function openAccountModal() {
+    selectedEmail  = null;
+    modalConfirm.disabled = true;
+    accountSearch.value   = '';
+    modalSearch.style.display = 'none';
+    modalBody.innerHTML   = '';
+    modalBody.appendChild(modalLoading);
+    accountModal.classList.add('show');
+
+    api.accountsFetch().then((res) => {
+        if (!res.success) {
+            showModalError(res.error || 'Could not load accounts.');
+            return;
+        }
+        allAccounts = res.accounts || [];
+        if (allAccounts.length === 0) {
+            showModalEmpty();
+        } else {
+            if (allAccounts.length > 4) modalSearch.style.display = 'block';
+            renderAccounts(allAccounts);
+        }
+    }).catch((err) => showModalError(err.message));
+}
+
+function closeAccountModal() {
+    accountModal.classList.remove('show');
+}
+
+function showModalError(msg) {
+    modalBody.innerHTML = `
+        <div class="modal-state error-state">
+          <span class="state-icon">❌</span>
+          <span>${escapeHtml(msg)}</span>
+        </div>`;
+}
+
+function showModalEmpty() {
+    modalBody.innerHTML = `
+        <div class="modal-state">
+          <span class="state-icon">📭</span>
+          <span>No user accounts found.<br>Add accounts in the Laravel admin panel first.</span>
+        </div>`;
+}
+
+function renderAccounts(accounts) {
+    modalBody.innerHTML = '';
+
+    if (accounts.length === 0) {
+        modalBody.innerHTML = `
+            <div class="modal-state">
+              <span class="state-icon">🔍</span>
+              <span>No accounts match your search.</span>
+            </div>`;
+        return;
+    }
+
+    accounts.forEach(({ email, active_templates_count, total_templates_count }) => {
+        const card = document.createElement('div');
+        card.className = `account-card${selectedEmail === email ? ' selected' : ''}`;
+        card.dataset.email = email;
+
+        const activeCount = active_templates_count ?? 0;
+        const totalCount  = total_templates_count  ?? 0;
+        const metaClass   = activeCount > 0 ? 'meta-active' : 'meta-none';
+        const metaText    = activeCount > 0
+            ? `${activeCount} active template${activeCount !== 1 ? 's' : ''} · ${totalCount} total`
+            : `No active templates · ${totalCount} total`;
+
+        card.innerHTML = `
+            <div class="account-avatar">👤</div>
+            <div class="account-info">
+              <div class="account-email" title="${escapeHtml(email)}">${escapeHtml(email)}</div>
+              <div class="account-meta"><span class="${metaClass}">${metaText}</span></div>
+            </div>
+            <div class="account-radio"></div>`;
+
+        card.addEventListener('click', () => selectAccount(email));
+        modalBody.appendChild(card);
+    });
+}
+
+function selectAccount(email) {
+    selectedEmail = email;
+    modalConfirm.disabled = false;
+
+    modalBody.querySelectorAll('.account-card').forEach((card) => {
+        card.classList.toggle('selected', card.dataset.email === email);
+    });
+}
+
+// Search filter
+accountSearch.addEventListener('input', () => {
+    const q = accountSearch.value.toLowerCase().trim();
+    const filtered = q ? allAccounts.filter((a) => a.email.toLowerCase().includes(q)) : allAccounts;
+    renderAccounts(filtered);
+    // Re-apply selection highlight after re-render
+    if (selectedEmail) {
+        const card = modalBody.querySelector(`[data-email="${CSS.escape(selectedEmail)}"]`);
+        if (card) card.classList.add('selected');
+        else { selectedEmail = null; modalConfirm.disabled = true; }
+    }
+});
+
+// Close actions
+modalCloseBtn.addEventListener('click', closeAccountModal);
+modalCancel.addEventListener('click', closeAccountModal);
+accountModal.addEventListener('click', (e) => {
+    if (e.target === accountModal) closeAccountModal();
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && accountModal.classList.contains('show')) closeAccountModal();
+});
+
+// Confirm — run the deleter for the chosen account
+modalConfirm.addEventListener('click', async () => {
+    if (!selectedEmail) return;
+
+    closeAccountModal();
+
+    const { success } = await api.deleterStart(selectedEmail);
+    if (!success) {
+        appendLog('[app] ❌ Could not start deleter — a process may already be running.');
+    } else {
+        appendLog(`[app] 🗑️ Starting delete-all for ${selectedEmail}…`);
+    }
+});
+
 // ── IPC listeners ─────────────────────────────────────────────────────────────
 
 api.onLog(appendLog);
@@ -216,6 +355,15 @@ api.onStatusChange(applyStatus);
 api.onRunComplete(applyRunStats);
 api.onUpdateStatus(applyUpdateStatus);
 api.onUpdateProgress(applyUpdateProgress);
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
