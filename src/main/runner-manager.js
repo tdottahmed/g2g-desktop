@@ -42,7 +42,6 @@ function buildEnv(config) {
         // Packaged: use userData for cookies and browsers (automation dir is read-only).
         return {
             ...base,
-            ELECTRON_RUN_AS_NODE:     '1',
             NODE_PATH:                path.join(process.resourcesPath, 'app', 'node_modules'),
             COOKIES_DIR:              getCookiesDir(),
             PLAYWRIGHT_BROWSERS_PATH: getBrowsersDir(),
