@@ -1,6 +1,6 @@
 const { spawn } = require('child_process');
 const path = require('path');
-const { app } = require('electron');
+const { app, utilityProcess } = require('electron');
 
 const STATUS = {
     IDLE: 'idle',
@@ -69,6 +69,24 @@ function setStatus(status) {
     if (statusCallback) statusCallback(status);
 }
 
+function attachProcessEvents(proc, scriptName, args) {
+    const mode = args.includes('--watch') ? STATUS.WATCHING : STATUS.RUNNING;
+    setStatus(mode);
+    emitLog(`[app] Started ${scriptName} ${args.join(' ')} (PID: ${proc.pid})`);
+
+    proc.stdout.on('data', (chunk) => {
+        chunk.toString().split('\n').filter(Boolean).forEach(emitLog);
+    });
+    proc.stderr.on('data', (chunk) => {
+        chunk.toString().split('\n').filter(Boolean).forEach((l) => emitLog(`[err] ${l}`));
+    });
+    proc.on('exit', (code) => {
+        emitLog(`[app] Process exited (code: ${code ?? 'null'})`);
+        currentProcess = null;
+        setStatus(code === 0 ? STATUS.IDLE : STATUS.ERROR);
+    });
+}
+
 function start(scriptName = 'runner.js', args = [], config = {}) {
     if (currentProcess) {
         emitLog('[app] Runner is already running. Stop it first.');
@@ -76,45 +94,40 @@ function start(scriptName = 'runner.js', args = [], config = {}) {
     }
 
     const automationDir = getAutomationDir();
-    // In packaged mode use Electron binary (ELECTRON_RUN_AS_NODE=1); in dev use system node.
-    const nodeBin = app.isPackaged ? process.execPath : 'node';
+    const env = buildEnv(config);
 
-    currentProcess = spawn(nodeBin, [scriptName, ...args], {
-        cwd: automationDir,
-        env: buildEnv(config),
-        shell: false,
-    });
-
-    const mode = args.includes('--watch') ? STATUS.WATCHING : STATUS.RUNNING;
-    setStatus(mode);
-    emitLog(`[app] Started ${scriptName} ${args.join(' ')} (PID: ${currentProcess.pid})`);
-
-    currentProcess.stdout.on('data', (chunk) => {
-        chunk.toString().split('\n').filter(Boolean).forEach(emitLog);
-    });
-
-    currentProcess.stderr.on('data', (chunk) => {
-        chunk.toString().split('\n').filter(Boolean).forEach((l) => emitLog(`[err] ${l}`));
-    });
-
-    currentProcess.on('exit', (code, signal) => {
-        emitLog(`[app] Process exited (code: ${code ?? 'null'}, signal: ${signal ?? 'none'})`);
-        currentProcess = null;
-        setStatus(code === 0 ? STATUS.IDLE : STATUS.ERROR);
-    });
-
-    currentProcess.on('error', (err) => {
-        emitLog(`[app] Failed to spawn process: ${err.message}`);
-        currentProcess = null;
-        setStatus(STATUS.ERROR);
-    });
+    if (app.isPackaged) {
+        // utilityProcess.fork() runs Node scripts directly — no need to spawn
+        // the Electron binary with ELECTRON_RUN_AS_NODE, which breaks on Windows
+        // when the binary lives in a temp directory (portable builds).
+        const scriptPath = path.join(automationDir, scriptName);
+        currentProcess = utilityProcess.fork(scriptPath, args, {
+            cwd: automationDir,
+            env,
+            stdio: 'pipe',
+        });
+        attachProcessEvents(currentProcess, scriptName, args);
+    } else {
+        const proc = spawn('node', [scriptName, ...args], {
+            cwd: automationDir,
+            env,
+            shell: false,
+        });
+        currentProcess = proc;
+        attachProcessEvents(proc, scriptName, args);
+        proc.on('error', (err) => {
+            emitLog(`[app] Failed to spawn process: ${err.message}`);
+            currentProcess = null;
+            setStatus(STATUS.ERROR);
+        });
+    }
 
     return true;
 }
 
 function stop() {
     if (!currentProcess) { emitLog('[app] Nothing is running.'); return false; }
-    currentProcess.kill('SIGTERM');
+    currentProcess.kill();
     emitLog('[app] Sent stop signal...');
     return true;
 }
