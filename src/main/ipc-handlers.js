@@ -1,6 +1,7 @@
 const { ipcMain, app } = require('electron');
 const configStore = require('./config-store');
 const runnerManager = require('./runner-manager');
+const tray = require('./tray');
 
 function registerIpcHandlers(getWindow) {
     // ── Config ────────────────────────────────────────────────────────────────
@@ -82,8 +83,11 @@ function registerIpcHandlers(getWindow) {
     });
 
     runnerManager.setStatusCallback((status) => {
+        // Update renderer
         const win = getWindow();
         if (win && !win.isDestroyed()) win.webContents.send('status-change', status);
+        // Update tray icon + menu
+        tray.setStatus(status);
     });
 }
 
