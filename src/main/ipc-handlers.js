@@ -133,7 +133,17 @@ function registerIpcHandlers(getWindow) {
                 signal: AbortSignal.timeout(8000),
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const body = await res.json();
+            const text = await res.text();
+            let body;
+            try {
+                body = JSON.parse(text);
+            } catch {
+                console.error('[accounts:fetch] Non-JSON response (possible network interception):', text.slice(0, 500));
+                return { success: false, error: `Non-JSON response: ${text.slice(0, 200)}` };
+            }
+            if (!body.accounts?.length) {
+                console.warn('[accounts:fetch] Empty accounts. Raw response:', text.slice(0, 500));
+            }
             return { success: true, accounts: body.accounts ?? [] };
         } catch (err) {
             return { success: false, error: err.message };
@@ -162,7 +172,7 @@ function registerIpcHandlers(getWindow) {
     ipcMain.handle('update:download', () => updater.downloadUpdate());
     ipcMain.handle('update:install', () => updater.installUpdate());
     ipcMain.handle('update:open-releases', () => {
-        shell.openExternal('https://github.com/GITHUB_OWNER/g2g-automation-desktop/releases/latest');
+        shell.openExternal('https://github.com/tdottahmed/g2g-desktop/releases/latest');
     });
 
     // Forward updater events to the renderer and tray
