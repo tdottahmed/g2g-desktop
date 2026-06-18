@@ -53,6 +53,10 @@ function createWindow() {
         setTimeout(() => updater.checkForUpdates(), 5000);
     });
 
+    // Re-send any pending update state whenever the window becomes visible,
+    // in case the event fired while the window was hidden in the tray.
+    mainWindow.on('show', () => updater.replayCurrent());
+
     // Close → hide to tray (unless app.isQuitting is set by tray Quit action)
     mainWindow.on('close', (e) => {
         if (!app.isQuitting) {

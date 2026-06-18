@@ -9,8 +9,9 @@ autoUpdater.allowPrerelease      = false;
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-let getWindow     = null;
-let lastCheckTime = 0;
+let getWindow        = null;
+let lastCheckTime    = 0;
+let lastUpdateStatus = null; // replayed when the window opens after the event fired
 const CHECK_INTERVAL = 24 * 60 * 60 * 1000; // once per day
 
 function send(channel, data) {
@@ -25,10 +26,12 @@ autoUpdater.on('checking-for-update', () => {
 });
 
 autoUpdater.on('update-available', (info) => {
-    send('update:status', { state: 'available', version: info.version, releaseNotes: info.releaseNotes });
+    lastUpdateStatus = { state: 'available', version: info.version, releaseNotes: info.releaseNotes };
+    send('update:status', lastUpdateStatus);
 });
 
 autoUpdater.on('update-not-available', () => {
+    lastUpdateStatus = null;
     send('update:status', { state: 'not-available', version: app.getVersion() });
 });
 
@@ -37,7 +40,8 @@ autoUpdater.on('download-progress', ({ percent, transferred, total }) => {
 });
 
 autoUpdater.on('update-downloaded', (info) => {
-    send('update:status', { state: 'downloaded', version: info.version });
+    lastUpdateStatus = { state: 'downloaded', version: info.version };
+    send('update:status', lastUpdateStatus);
 });
 
 autoUpdater.on('error', (err) => {
@@ -50,6 +54,12 @@ autoUpdater.on('error', (err) => {
 // ── Public API ────────────────────────────────────────────────────────────────
 
 function setGetWindow(fn) { getWindow = fn; }
+
+// Replay the last update state to the renderer — called when the window is shown
+// after the original event may have fired while the window was hidden.
+function replayCurrent() {
+    if (lastUpdateStatus) send('update:status', lastUpdateStatus);
+}
 
 function checkForUpdates(force = false) {
     if (!app.isPackaged && !force) return; // skip in dev unless forced
@@ -69,4 +79,4 @@ function installUpdate() {
     autoUpdater.quitAndInstall(false, true);
 }
 
-module.exports = { setGetWindow, checkForUpdates, downloadUpdate, installUpdate };
+module.exports = { setGetWindow, checkForUpdates, downloadUpdate, installUpdate, replayCurrent };

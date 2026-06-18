@@ -36,13 +36,11 @@ function buildMenu() {
         updateItem = {
             label,
             click: () => {
+                showWindow();
                 if (updateState === 'downloaded') {
                     require('./updater').installUpdate();
                 } else {
-                    // Open GitHub releases page in default browser
-                    const cfg = require('./config-store').getAll();
-                    const owner = 'GITHUB_OWNER'; // replace with real owner if known
-                    shell.openExternal(`https://github.com/${owner}/g2g-automation-desktop/releases/latest`);
+                    require('./updater').downloadUpdate();
                 }
             },
         };
