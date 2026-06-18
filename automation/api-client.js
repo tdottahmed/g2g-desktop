@@ -51,7 +51,7 @@ export async function fetchPending() {
 /**
  * Report a successful posting for one template.
  * @param {number} templateId
- * @param {object} details  - arbitrary execution metadata to store in logs
+ * @param {object} details
  */
 export async function reportSuccess(templateId, details = {}) {
     return request("POST", `/automation/${templateId}/success`, { details });
@@ -68,36 +68,9 @@ export async function reportFailed(templateId, error, details = {}) {
 }
 
 /**
- * Fetch users and their templates that are queued for deletion from g2g.com.
- * @returns {{ users: Array, server_time: string }}
- */
-export async function fetchPendingDeletions() {
-    return request("GET", "/automation/pending-deletions");
-}
-
-/**
- * Report that a specific offer was successfully deleted from g2g.com.
- * Clears queue_delete and deactivates the template in Laravel.
- * @param {number} templateId
- * @param {object} details
- */
-export async function reportDeleteSuccess(templateId, details = {}) {
-    return request("POST", `/automation/${templateId}/delete-success`, { details });
-}
-
-/**
- * Report that a specific offer deletion failed.
- * @param {number} templateId
- * @param {string} error
- * @param {object} details
- */
-export async function reportDeleteFailed(templateId, error, details = {}) {
-    return request("POST", `/automation/${templateId}/delete-failed`, { error, details });
-}
-
-/**
- * Fetch user accounts queued for delete-all (delete every live offer from g2g.com).
- * @returns {{ users: Array<{user_id, email, password}>, server_time: string }}
+ * Fetch user accounts queued for delete-all.
+ * Each entry includes `permanent_titles` — offer titles the runner must NOT delete.
+ * @returns {{ users: Array<{user_id, email, password, permanent_titles: string[]}>, server_time: string }}
  */
 export async function fetchPendingDeleteAll() {
     return request("GET", "/automation/pending-delete-all");
@@ -120,4 +93,14 @@ export async function reportDeleteAllComplete(userAccountId, details = {}) {
  */
 export async function reportDeleteAllFailed(userAccountId, error) {
     return request("POST", `/automation/user-accounts/${userAccountId}/delete-all-failed`, { error });
+}
+
+/**
+ * Fetch all non-permanent (deletable) offer templates for one user account.
+ * Used by the "Delete Non-Permanent" desktop action.
+ * @param {number} userAccountId
+ * @returns {{ user_id: number, email: string, offers: Array<{title: string, price: string|null}> }}
+ */
+export async function fetchNonPermanentOffers(userAccountId) {
+    return request("GET", `/automation/user-accounts/${userAccountId}/non-permanent-offers`);
 }
