@@ -171,88 +171,158 @@ async function runApiMode() {
     }
 }
 
-// ─── Core: delete a list of offer targets ─────────────────────────────────────
+// ─── Core: batch-delete a list of offer targets ───────────────────────────────
+//
+// Strategy: navigate once per deletion pass. On each page of the table, select
+// ALL rows that match a target title, then bulk-delete in one action. Repeat
+// until a full pass through all pages finds nothing left to delete.
+// For 300 offers at ~20/page this means ~15 navigations instead of 300.
 
 async function deleteOfferList(page, targets) {
-    let deleted = 0;
-    let skipped = 0;
+    if (targets.length === 0) return { deleted: 0, skipped: 0 };
 
-    for (const target of targets) {
-        console.log(`\n🔄  Processing: "${target.title}"${target.price ? ` @ ${target.price}` : ""}`);
+    const prefixes = targets.map((t) => ({
+        prefix: t.title.toLowerCase().trim().substring(0, 50),
+        price:  t.price != null ? parseFloat(t.price) : null,
+        title:  t.title,
+    }));
+
+    let totalDeleted = 0;
+
+    for (let pass = 0; pass < 200; pass++) {
+        console.log(`\n🔄  Pass ${pass + 1} — navigating to offers list...`);
         try {
-            const found = await deleteOfferByTitle(page, target.title, target.price ?? null);
-            if (found) {
-                deleted++;
-            } else {
-                console.log(`   ⚠️   Not found on g2g — may already be deleted.`);
-                skipped++;
-            }
+            await page.goto(`${BASE_URL}/offers/list`, { waitUntil: "load", timeout: 45000 });
         } catch (err) {
-            console.error(`   ❌  Error: ${err.message}`);
-            skipped++;
+            throw new Error(`Navigation failed: ${err.message}`);
+        }
+
+        if (!(await clickAccountsTab(page))) throw new Error("Could not click Accounts tab");
+
+        let deletedThisPass = 0;
+
+        // Walk through table pages; break inner loop after each deletion so we
+        // re-navigate and get a fresh table state.
+        for (let pg = 0; pg < 50; pg++) {
+            if (!(await waitForTableRows(page))) break;
+
+            const { selectedCount, selectedTitles } = await selectAllMatchingRows(page, prefixes);
+
+            if (selectedCount === 0) {
+                if (!(await clickNextPage(page))) break;
+                await waitForTableRows(page);
+                continue;
+            }
+
+            console.log(`   ✅  Selected ${selectedCount} offer(s):`);
+            selectedTitles.forEach((t) => console.log(`      – "${t}"`));
+
+            if (DRY_RUN) {
+                console.log(`   ℹ️  Dry run — skipping deletion.`);
+                totalDeleted += selectedCount;
+                if (!(await clickNextPage(page))) break;
+                await waitForTableRows(page);
+                continue;
+            }
+
+            await page.waitForTimeout(300);
+
+            if (!(await clickDeleteButton(page))) throw new Error("Delete button not found");
+            if (!(await confirmDeletion(page)))    throw new Error("Confirm dialog failed");
+
+            deletedThisPass += selectedCount;
+            totalDeleted    += selectedCount;
+            console.log(`   🗑️   Deleted ${selectedCount} offer(s)  (running total: ${totalDeleted})`);
+
+            // Re-navigate next iteration for a clean table state
+            break;
+        }
+
+        // Stop when a full pass found nothing to delete
+        if (DRY_RUN || deletedThisPass === 0) break;
+    }
+
+    const skipped = Math.max(0, targets.length - totalDeleted);
+    return { deleted: totalDeleted, skipped };
+}
+
+// ─── Select all rows on the current page that match any target prefix ─────────
+
+async function selectAllMatchingRows(page, prefixes) {
+    const rows  = page.locator(".q-table tbody tr");
+    const count = await rows.count();
+    if (count === 0) return { selectedCount: 0, selectedTitles: [] };
+
+    const matchIndexes = [];
+    const matchTitles  = [];
+
+    for (let i = 0; i < count; i++) {
+        const row = rows.nth(i);
+
+        let rowTitle = "";
+        try {
+            rowTitle = (
+                await row.locator("td:nth-child(2) .text-body1 span").first().innerText({ timeout: 2000 })
+            ).toLowerCase().trim();
+        } catch {
+            try { rowTitle = (await row.innerText({ timeout: 2000 })).toLowerCase().trim(); }
+            catch { continue; }
+        }
+
+        const hit = prefixes.find((p) => rowTitle.includes(p.prefix));
+        if (!hit) continue;
+
+        if (hit.price !== null) {
+            let priceText = "";
+            try {
+                priceText = (
+                    await row.locator("td:nth-child(5) span").last().innerText({ timeout: 2000 })
+                ).trim();
+            } catch {}
+            if (priceText) {
+                const rp = parseFloat(priceText);
+                if (!isNaN(rp) && Math.abs(rp - hit.price) > 0.01) continue;
+            }
+        }
+
+        matchIndexes.push(i);
+        matchTitles.push(hit.title);
+    }
+
+    if (matchIndexes.length === 0) return { selectedCount: 0, selectedTitles: [] };
+
+    // All visible rows are targets → use header "select all" checkbox for speed
+    if (matchIndexes.length === count) {
+        const hdr = page.locator("thead .q-checkbox, thead [role='checkbox']").first();
+        if ((await hdr.count()) > 0) {
+            try {
+                const checked = await hdr.getAttribute("aria-checked").catch(() => "false");
+                if (checked !== "true") await hdr.click({ force: true });
+                await page.waitForTimeout(200);
+                return { selectedCount: count, selectedTitles: matchTitles };
+            } catch { /* fall through to per-row selection */ }
         }
     }
 
-    return { deleted, skipped };
-}
-
-// ─── Core: find + delete a specific offer by title ───────────────────────────
-
-async function deleteOfferByTitle(page, title, price) {
-    // ── Navigate ──────────────────────────────────────────────────────────────
-    console.log("   🌐  Navigating to offers list...");
-    try {
-        await page.goto(`${BASE_URL}/offers/list`, { waitUntil: "load", timeout: 45000 });
-    } catch (err) {
-        throw new Error(`Navigation failed: ${err.message}`);
+    // Partial match — select only the matching rows
+    let selectedCount = 0;
+    for (const i of matchIndexes) {
+        const row      = rows.nth(i);
+        const checkbox = row.locator("td div[role='checkbox'], td .q-checkbox").first();
+        try {
+            if ((await checkbox.count()) === 0) {
+                await row.click({ force: true });
+            } else {
+                const checked = await checkbox.getAttribute("aria-checked").catch(() => "false");
+                if (checked !== "true") await checkbox.click({ force: true });
+            }
+            selectedCount++;
+        } catch (err) {
+            console.log(`   ⚠️   Could not select row: ${err.message}`);
+        }
     }
 
-    // ── Wait for tabs and click Accounts ─────────────────────────────────────
-    const tabClicked = await clickAccountsTab(page);
-    if (!tabClicked) throw new Error("Could not click Accounts tab");
-
-    // ── Wait for content to load ──────────────────────────────────────────────
-    const hasRows = await waitForTableRows(page);
-    if (!hasRows) {
-        console.log("   ℹ️   No rows found — all offers may already be gone.");
-        return true;
-    }
-
-    // ── Search through pages ───────────────────────────────────────────────────
-    let selected = false;
-    let rounds   = 0;
-
-    while (!selected && rounds < 10) {
-        rounds++;
-        selected = await selectRowByTitleAndPrice(page, title, price);
-        if (selected) break;
-
-        const nextPage = await clickNextPage(page);
-        if (!nextPage) break;
-
-        // Wait for next page rows to load
-        await waitForTableRows(page);
-    }
-
-    if (!selected) return false;
-
-    if (DRY_RUN) {
-        console.log(`   ℹ️  Dry run — would delete "${title}"`);
-        return true;
-    }
-
-    // ── Delete ────────────────────────────────────────────────────────────────
-    // Small pause for Quasar action bar to appear after selection
-    await page.waitForTimeout(400);
-
-    const deleteClicked = await clickDeleteButton(page);
-    if (!deleteClicked) throw new Error("Delete button not found after selection");
-
-    const confirmed = await confirmDeletion(page);
-    if (!confirmed) throw new Error("Confirm dialog failed");
-
-    console.log(`   🗑️   Deleted: "${title}"`);
-    return true;
+    return { selectedCount, selectedTitles: matchTitles.slice(0, selectedCount) };
 }
 
 // ─── Step helpers ─────────────────────────────────────────────────────────────
@@ -292,66 +362,6 @@ async function waitForTableRows(page) {
     } catch {
         return false;
     }
-}
-
-async function selectRowByTitleAndPrice(page, title, price) {
-    const titlePrefix = title.toLowerCase().trim().substring(0, 50);
-    const targetPrice = price ? parseFloat(price) : null;
-
-    const rows  = page.locator(".q-table tbody tr");
-    const count = await rows.count();
-
-    for (let i = 0; i < count; i++) {
-        const row = rows.nth(i);
-
-        let rowTitle = "";
-        try {
-            rowTitle = (
-                await row.locator("td:nth-child(2) .text-body1 span").first().innerText({ timeout: 3000 })
-            ).toLowerCase().trim();
-        } catch {
-            try {
-                rowTitle = (await row.innerText({ timeout: 3000 })).toLowerCase();
-            } catch {
-                continue;
-            }
-        }
-
-        if (!rowTitle.includes(titlePrefix)) continue;
-
-        if (targetPrice !== null) {
-            let rowPriceText = "";
-            try {
-                rowPriceText = (
-                    await row.locator("td:nth-child(5) span").last().innerText({ timeout: 2000 })
-                ).trim();
-            } catch { /* skip price check */ }
-
-            if (rowPriceText) {
-                const rowPrice = parseFloat(rowPriceText);
-                if (!isNaN(rowPrice) && Math.abs(rowPrice - targetPrice) > 0.01) continue;
-            }
-        }
-
-        const checkbox = row.locator("td div[role='checkbox'], td .q-checkbox").first();
-        try {
-            if ((await checkbox.count()) === 0) {
-                await row.click({ force: true });
-            } else {
-                const checked = await checkbox.getAttribute("aria-checked").catch(() => "false");
-                if (checked !== "true") await checkbox.click({ force: true });
-            }
-        } catch (err) {
-            console.log(`   ⚠️   Could not select row: ${err.message}`);
-            continue;
-        }
-
-        await page.waitForTimeout(400);
-        console.log(`   ✅  Found and selected: "${title}"${price ? ` @ ${price}` : ""}`);
-        return true;
-    }
-
-    return false;
 }
 
 async function clickNextPage(page) {
