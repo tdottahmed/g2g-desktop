@@ -1,4 +1,5 @@
 import { humanDelay } from "./index.js";
+import { GAME_BRANDS } from "../templates/games.js";
 
 export async function navigateToSellOffers(page) {
     try {
@@ -143,10 +144,12 @@ export async function handleProtectAccountPopup(page) {
     }
 }
 
-export async function selectGameBrand(
-    page,
-    gameName = "Clash of Clans (Global)"
-) {
+export async function selectGameBrand(page, game = "clash_of_clans") {
+    const gameName = GAME_BRANDS[game] ?? game;
+    return _selectGameBrand(page, gameName);
+}
+
+async function _selectGameBrand(page, gameName) {
     try {
         console.log(`🎮 Selecting game brand: ${gameName}`);
 
@@ -223,9 +226,11 @@ export async function clickContinueButton(page) {
 }
 
 /**
- * Navigate to Accounts section **before** clicking Continue
+ * Navigate to Accounts section for a given game, ready for clicking Continue.
+ * @param {import('playwright').Page} page
+ * @param {string} game — game slug (e.g. 'clash_of_clans', 'brawl_stars')
  */
-export async function navigateToAccountsSection(page) {
+export async function navigateToAccountsSection(page, game = "clash_of_clans") {
     await page.waitForTimeout(3000);
     const navSuccess = await navigateToSellOffers(page);
     if (!navSuccess) return false;
@@ -236,11 +241,9 @@ export async function navigateToAccountsSection(page) {
     const popupHandled = await handleProtectAccountPopup(page);
     if (!popupHandled) return false;
 
-    const gameSelected = await selectGameBrand(page);
+    const gameSelected = await selectGameBrand(page, game);
     if (!gameSelected) return false;
 
-    console.log(
-        "✅ Successfully navigated to Accounts section (before Continue)"
-    );
+    console.log(`✅ Navigated to Accounts section for: ${GAME_BRANDS[game] ?? game}`);
     return true;
 }

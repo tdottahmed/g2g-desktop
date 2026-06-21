@@ -149,66 +149,76 @@ async function processUserGroup(userGroup) {
             return;
         }
 
-        // ── Navigate to offer creation ──
-        const navSuccess = await navigateToAccountsSection(page);
-        if (!navSuccess) {
-            console.error("❌ Failed to navigate to Accounts section");
-            for (const t of templates) {
-                await reportFailed(t.template_id, "Navigation to Accounts section failed").catch(() => {});
-            }
-            return;
-        }
+        // ── Group templates by game, then post each game batch ──
+        const byGame = groupByGame(templates);
+        const gameEntries = Object.entries(byGame);
 
-        const continueSuccess = await clickContinueButton(page);
-        if (!continueSuccess) {
-            console.error("❌ Failed to click Continue");
-            for (const t of templates) {
-                await reportFailed(t.template_id, "Failed to click Continue button").catch(() => {});
-            }
-            return;
-        }
+        for (const [game, gameTemplates] of gameEntries) {
+            console.log(`\n🎮 Game: ${game} (${gameTemplates.length} template(s))`);
 
-        // ── Post each template ──
-        for (let i = 0; i < templates.length; i++) {
-            const template = templates[i];
-            const isLast   = i === templates.length - 1;
-
-            console.log(`\n   🔄 [${i + 1}/${templates.length}] ${template.Title}`);
-
-            const startedAt = Date.now();
-
-            try {
-                await fillOfferForm(page, template);
-
-                if (!isLast) {
-                    const ok = await submitFormAndAddNew(page);
-                    if (!ok) {
-                        await reportFailed(template.template_id, "submitFormAndAddNew failed — browser may be in unknown state", {
-                            template_title: template.Title,
-                        });
-                        console.log("⚠️ Stopping this user's session after submit failure");
-                        break;
-                    }
-                } else {
-                    await submitForm(page);
-                    await page.waitForTimeout(5000);
+            const navSuccess = await navigateToAccountsSection(page, game);
+            if (!navSuccess) {
+                console.error(`❌ Failed to navigate to Accounts section for ${game}`);
+                for (const t of gameTemplates) {
+                    await reportFailed(t.template_id, `Navigation failed for game: ${game}`, {
+                        game,
+                    }).catch(() => {});
                 }
+                continue; // Try next game
+            }
 
-                const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
-                await reportSuccess(template.template_id, {
-                    template_title: template.Title,
-                    elapsed_seconds: elapsed,
-                    runner_host: process.env.HOSTNAME ?? "local",
-                });
-                console.log(`   ✅ Reported success for template ${template.template_id} (${elapsed}s)`);
-            } catch (error) {
-                console.error(`   ❌ Template ${template.template_id} failed:`, error.message);
-                await reportFailed(template.template_id, error.message, {
-                    template_title: template.Title,
-                    stack: error.stack,
-                }).catch(() => {});
-                console.log("⚠️ Stopping this user's session after unexpected error");
-                break;
+            const continueSuccess = await clickContinueButton(page);
+            if (!continueSuccess) {
+                console.error(`❌ Failed to click Continue for ${game}`);
+                for (const t of gameTemplates) {
+                    await reportFailed(t.template_id, "Failed to click Continue button").catch(() => {});
+                }
+                continue;
+            }
+
+            for (let i = 0; i < gameTemplates.length; i++) {
+                const template = gameTemplates[i];
+                const isLast   = i === gameTemplates.length - 1;
+
+                console.log(`\n   🔄 [${i + 1}/${gameTemplates.length}] ${template.Title}`);
+
+                const startedAt = Date.now();
+
+                try {
+                    await fillOfferForm(page, template);
+
+                    if (!isLast) {
+                        const ok = await submitFormAndAddNew(page);
+                        if (!ok) {
+                            await reportFailed(template.template_id, "submitFormAndAddNew failed", {
+                                template_title: template.Title,
+                            });
+                            console.log("⚠️  Stopping this game's session after submit failure");
+                            break;
+                        }
+                    } else {
+                        await submitForm(page);
+                        await page.waitForTimeout(5000);
+                    }
+
+                    const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+                    await reportSuccess(template.template_id, {
+                        template_title: template.Title,
+                        game,
+                        elapsed_seconds: elapsed,
+                        runner_host: process.env.HOSTNAME ?? "local",
+                    });
+                    console.log(`   ✅ Success: template ${template.template_id} (${elapsed}s)`);
+                } catch (error) {
+                    console.error(`   ❌ Template ${template.template_id} failed:`, error.message);
+                    await reportFailed(template.template_id, error.message, {
+                        template_title: template.Title,
+                        game,
+                        stack: error.stack,
+                    }).catch(() => {});
+                    console.log("⚠️  Stopping this game's session after unexpected error");
+                    break;
+                }
             }
         }
 
@@ -227,6 +237,19 @@ async function processUserGroup(userGroup) {
 
 function delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Group a flat list of templates by game slug, preserving order within each group.
+ * Templates without a game default to 'clash_of_clans'.
+ */
+function groupByGame(templates) {
+    const groups = {};
+    for (const t of templates) {
+        const g = t.game || "clash_of_clans";
+        (groups[g] ??= []).push(t);
+    }
+    return groups;
 }
 
 // ─── Run ─────────────────────────────────────────────────────────────────────
