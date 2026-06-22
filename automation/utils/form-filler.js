@@ -426,12 +426,28 @@ async function selectDropdownOption(page, section, btn, value, label) {
             return false;
         }
 
-        await filterInput.fill(value);
+        let filterValue = String(value);
+        await filterInput.fill(filterValue);
         await page.waitForTimeout(700);
 
-        const allOptions = section.locator(".q-item__section");
+        let allOptions = section.locator(".q-item__section");
+
+        // If no options found and the value looks like a number (e.g., "70000" or "70000+"), 
+        // try formatting with commas since G2G often displays large numbers as "70,000".
+        const numMatch = filterValue.match(/^(\d+)(\+?)$/);
+        if ((await allOptions.count()) === 0 && numMatch) {
+            const formattedValue = Number(numMatch[1]).toLocaleString("en-US") + numMatch[2];
+            if (formattedValue !== filterValue) {
+                console.log(`⚠️  No options found for "${filterValue}". Retrying filter with "${formattedValue}"...`);
+                filterValue = formattedValue;
+                await filterInput.fill(filterValue);
+                await page.waitForTimeout(700);
+                allOptions = section.locator(".q-item__section");
+            }
+        }
+
         const exactMatch = allOptions.filter({
-            hasText: new RegExp(`^\\s*${escapeRegex(value)}\\s*$`),
+            hasText: new RegExp(`^\\s*${escapeRegex(filterValue)}\\s*$`),
         });
 
         const option = (await exactMatch.count()) > 0
