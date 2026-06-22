@@ -84,14 +84,6 @@ export async function submitForm(page) {
 
 // ─── Game-specific detail section ────────────────────────────────────────────
 
-/**
- * Fill the game-specific attributes section (Section 2 on the g2g.com form —
- * "Levels" for CoC, "Details" for other games).
- *
- * Fields are located by their index within the section, in the order defined
- * in GAME_FIELD_SPECS. If g2g.com's actual field order differs, adjust the
- * spec in templates/games.js.
- */
 async function fillGameDetails(page, game, gameData) {
     const specs = GAME_FIELD_SPECS[game];
     if (!specs) {
@@ -102,15 +94,18 @@ async function fillGameDetails(page, game, gameData) {
     // Section index 0 = Service/type selector (pre-filled by navigation — skip).
     // Section index 1 = game-specific attributes (Levels, Details, etc.).
     const section = page.locator(".g-cu-form-card__section").nth(1);
-    if ((await section.count()) === 0) {
+    try {
+        await section.waitFor({ state: 'attached', timeout: 10000 });
+    } catch (err) {
         console.log("❌ Game details section not found on page");
         return;
     }
 
-    // Each field is a col-12 wrapper that contains a label+input row.
-    // The inner columns (col-md-4 label, col-md-8 input) also carry col-12,
-    // so exclude any div that has a col-md-* class to land on field wrappers only.
-    const fieldEls = section.locator(".col-12:not([class*='col-md'])");
+    const dropdownBtns = section.locator(".g-btn-select");
+    const textInputs = section.locator('input:not([type=hidden]):not([placeholder="Type to filter"]), textarea');
+
+    let dropIdx = 0;
+    let textIdx = 0;
 
     for (let i = 0; i < specs.length; i++) {
         const { key, label, type } = specs[i];
@@ -118,19 +113,29 @@ async function fillGameDetails(page, game, gameData) {
 
         if (value === undefined || value === null || value === "") {
             console.log(`⏭  Skipping ${label} (no value in game_data)`);
-            continue;
-        }
-
-        const fieldEl = fieldEls.nth(i);
-        if ((await fieldEl.count()) === 0) {
-            console.log(`⚠️  Field "${label}" (index ${i}) not found — check GAME_FIELD_SPECS order`);
+            if (type === "dropdown") dropIdx++;
+            else textIdx++;
             continue;
         }
 
         if (type === "dropdown") {
-            await selectDropdownOption(page, fieldEl, String(value));
+            const btn = dropdownBtns.nth(dropIdx);
+            try {
+                await btn.waitFor({ state: 'attached', timeout: 8000 });
+                await selectDropdownOption(page, section, btn, String(value), label);
+            } catch (err) {
+                console.log(`❌ Dropdown not found for ${label} (index ${dropIdx})`);
+            }
+            dropIdx++;
         } else {
-            await fillInputField(page, fieldEl, String(value), label);
+            const input = textInputs.nth(textIdx);
+            try {
+                await input.waitFor({ state: 'attached', timeout: 8000 });
+                await fillInputField(page, input, String(value), label);
+            } catch (err) {
+                console.log(`❌ Input not found for ${label} (index ${textIdx})`);
+            }
+            textIdx++;
         }
         await page.waitForTimeout(500);
     }
@@ -405,24 +410,18 @@ async function setDeliveryMinute(page, minValue) {
 
 // ─── Low-level field helpers ──────────────────────────────────────────────────
 
-async function selectDropdownOption(page, fieldEl, value) {
-    // Label lives in the col-md-4 sub-column; button in the col-md-8 sub-column.
-    // Both are descendants of fieldEl, so we can reach them directly.
-    const label = await fieldEl.locator(".text-font-2nd").first()
-        .innerText().then(t => t.trim()).catch(() => "?");
-
-    const btn = fieldEl.locator(".g-btn-select").first();
-
+async function selectDropdownOption(page, section, btn, value, label) {
     try {
         console.log(`🔽 Selecting ${label} = ${value}`);
         await humanDelay(300, 500);
         await btn.click({ force: true });
         await page.waitForTimeout(500);
 
-        // The dropdown card renders inline inside fieldEl (not in a portal).
-        const filterInput = fieldEl.locator('input[placeholder="Type to filter"]').first();
-        if ((await filterInput.count()) === 0) {
-            await ensureDropdownClosed(page, fieldEl, btn);
+        const filterInput = section.locator('input[placeholder="Type to filter"]').first();
+        try {
+            await filterInput.waitFor({ state: 'attached', timeout: 5000 });
+        } catch (err) {
+            await ensureDropdownClosed(page, section, btn);
             console.log(`❌ Filter input not found for "${label}"`);
             return false;
         }
@@ -430,9 +429,7 @@ async function selectDropdownOption(page, fieldEl, value) {
         await filterInput.fill(value);
         await page.waitForTimeout(700);
 
-        // Prefer exact match; fall back to first visible option after filtering.
-        // g2g may display "70+" or "95+" for API values stored as "70" or "95".
-        const allOptions = fieldEl.locator(".q-item__section");
+        const allOptions = section.locator(".q-item__section");
         const exactMatch = allOptions.filter({
             hasText: new RegExp(`^\\s*${escapeRegex(value)}\\s*$`),
         });
@@ -442,7 +439,7 @@ async function selectDropdownOption(page, fieldEl, value) {
             : allOptions.first();
 
         if ((await option.count()) === 0) {
-            await ensureDropdownClosed(page, fieldEl, btn);
+            await ensureDropdownClosed(page, section, btn);
             console.log(`❌ No option found for "${value}" in "${label}" dropdown`);
             return false;
         }
@@ -454,21 +451,15 @@ async function selectDropdownOption(page, fieldEl, value) {
         return true;
     } catch (error) {
         console.error(`❌ Dropdown "${label}":`, error.message);
-        await ensureDropdownClosed(page, fieldEl, btn);
+        await ensureDropdownClosed(page, section, btn);
         return false;
     }
 }
 
-/**
- * Ensure a g2g inline dropdown is closed.
- * Pressing Escape alone is unreliable — if it fails, clicking the toggle button
- * a second time closes it. This prevents the open dropdown from blocking the
- * next field's button click.
- */
-async function ensureDropdownClosed(page, fieldEl, btn) {
+async function ensureDropdownClosed(page, section, btn) {
     await page.keyboard.press("Escape").catch(() => {});
     await page.waitForTimeout(300);
-    if ((await fieldEl.locator('input[placeholder="Type to filter"]').count()) > 0) {
+    if ((await section.locator('input[placeholder="Type to filter"]').count()) > 0) {
         await btn.click({ force: true }).catch(() => {});
         await page.waitForTimeout(300);
     }
@@ -478,16 +469,8 @@ function escapeRegex(str) {
     return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-async function fillInputField(page, fieldEl, value, label = "field") {
+async function fillInputField(page, input, value, label) {
     try {
-        // .q-field__native is the wrapper <div>; the actual editable element is
-        // the <input> or <textarea> inside it (or directly on the element in
-        // some Quasar versions). Target it directly to avoid the fill() error.
-        const input = fieldEl.locator("input:not([type=hidden]), textarea").first();
-        if ((await input.count()) === 0) {
-            console.log(`❌ Input not found: ${label}`);
-            return false;
-        }
         await humanDelay(300, 600);
         await input.click({ clickCount: 3 });
         await input.fill(value);

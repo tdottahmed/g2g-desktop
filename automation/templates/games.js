@@ -33,16 +33,16 @@ export const GAME_FIELD_SPECS = {
     ],
     brawl_stars: [
         { key: 'platform', label: 'Platform', type: 'dropdown' },
-        { key: 'trophies', label: 'Trophies', type: 'text' },
-        { key: 'brawlers', label: 'Brawlers', type: 'text' },
-        { key: 'skins',    label: 'Skins',    type: 'text' },
+        { key: 'trophies', label: 'Trophies', type: 'dropdown' },
+        { key: 'brawlers', label: 'Brawlers', type: 'dropdown' },
+        { key: 'skins',    label: 'Skins',    type: 'dropdown' },
     ],
     clash_royale: [
         { key: 'king_level',     label: 'King Level',      type: 'dropdown' },
         { key: 'arena',          label: 'Arena',           type: 'dropdown' },
-        { key: 'level_16_cards', label: 'Level 16 Cards', type: 'text' },
-        { key: 'level_15_cards', label: 'Level 15 Cards', type: 'text' },
-        { key: 'level_14_cards', label: 'Level 14 Cards', type: 'text' },
+        { key: 'level_16_cards', label: 'Level 16 Cards', type: 'dropdown' },
+        { key: 'level_15_cards', label: 'Level 15 Cards', type: 'dropdown' },
+        { key: 'level_14_cards', label: 'Level 14 Cards', type: 'dropdown' },
     ],
     hay_day: [
         { key: 'platform', label: 'Platform', type: 'dropdown' },
@@ -50,8 +50,8 @@ export const GAME_FIELD_SPECS = {
     mobile_legends: [
         { key: 'platform', label: 'Platform', type: 'dropdown' },
         { key: 'rank',     label: 'Rank',     type: 'dropdown' },
-        { key: 'heroes',   label: 'Heroes',   type: 'text' },
-        { key: 'skins',    label: 'Skins',    type: 'text' },
+        { key: 'heroes',   label: 'Heroes',   type: 'dropdown' },
+        { key: 'skins',    label: 'Skins',    type: 'dropdown' },
     ],
     call_of_duty_mobile: [
         { key: 'platform', label: 'Platform', type: 'dropdown' },
