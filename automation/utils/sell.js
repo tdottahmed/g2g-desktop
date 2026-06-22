@@ -167,9 +167,9 @@ async function _selectGameBrand(page, gameName) {
         await page.waitForTimeout(6000);
 
         let gameSelected = false;
-        const exactGameOption = page.locator(`text=/${gameName}/i`);
+        const exactGameOption = page.getByText(gameName, { exact: true });
         if ((await exactGameOption.count()) > 0) {
-            await exactGameOption.click();
+            await exactGameOption.first().click();
             gameSelected = true;
         } else {
             const allOptions = await page.$$(".q-item");

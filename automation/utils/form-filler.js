@@ -23,16 +23,11 @@ export async function fillOfferForm(page, template) {
     await fillPricingSection(page, template["Default price (unit)"], template["Minimum purchase quantity"]);
     await fillMediaGallery(page, template.mediaData || []);
 
-    const isInstant = Number(template["Instant delivery"]) === 1;
-    if (isInstant) {
-        await selectInstantDelivery(page);
-    } else {
-        await selectManualDelivery(page);
-        await page.waitForTimeout(1000);
-        await setDeliveryHour(page, template["Delivery hour"]);
-        await page.waitForTimeout(1000);
-        await setDeliveryMinute(page, template["Delivery minute"]);
-    }
+    await selectManualDelivery(page);
+    await page.waitForTimeout(1000);
+    await setDeliveryHour(page, 0);
+    await page.waitForTimeout(1000);
+    await setDeliveryMinute(page, 10);
 
     console.log(`✅ Form filled: "${template.Title}"`);
 }
