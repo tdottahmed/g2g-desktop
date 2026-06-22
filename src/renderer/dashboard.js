@@ -36,6 +36,7 @@ const modalCancel    = document.getElementById('modal-cancel');
 const modalCloseBtn  = document.getElementById('modal-close');
 const accountSearch  = document.getElementById('account-search');
 
+const btnCopyLogs      = document.getElementById('btn-copy-logs');
 const btnRun           = document.getElementById('btn-run');
 const btnWatch         = document.getElementById('btn-watch');
 const btnStop          = document.getElementById('btn-stop');
@@ -198,6 +199,25 @@ btnClear.addEventListener('click', () => {
     logPanel.appendChild(logEmpty);
     lineCount = 0;
     logCount.textContent = '0 lines';
+});
+
+btnCopyLogs.addEventListener('click', () => {
+    const rows = logPanel.querySelectorAll('.log-line');
+    if (rows.length === 0) return;
+
+    const text = [...rows].map(row => {
+        const time = row.querySelector('.log-time')?.textContent ?? '';
+        const msg  = row.querySelector('.log-text')?.textContent ?? '';
+        return `${time}  ${msg}`;
+    }).join('\n');
+
+    navigator.clipboard.writeText(text).then(() => {
+        btnCopyLogs.textContent = '✅ Copied';
+        setTimeout(() => { btnCopyLogs.textContent = '📋 Copy'; }, 1500);
+    }).catch(() => {
+        btnCopyLogs.textContent = '❌ Failed';
+        setTimeout(() => { btnCopyLogs.textContent = '📋 Copy'; }, 1500);
+    });
 });
 
 btnSettings.addEventListener('click', () => api.navigate('settings'));

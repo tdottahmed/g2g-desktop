@@ -20,13 +20,19 @@ export async function fillOfferForm(page, template) {
 
     await fillGameDetails(page, game, gameData);
     await fillTitleAndDescription(page, template.Title, template.Description);
-    await fillPricingSection(page, template["Default price (unit)"]);
+    await fillPricingSection(page, template["Default price (unit)"], template["Minimum purchase quantity"]);
     await fillMediaGallery(page, template.mediaData || []);
-    await selectManualDelivery(page);
-    await page.waitForTimeout(1000);
-    await setDeliveryHour(page, template["Delivery hour"]);
-    await page.waitForTimeout(1000);
-    await setDeliveryMinute(page, template["Delivery minute"]);
+
+    const isInstant = Number(template["Instant delivery"]) === 1;
+    if (isInstant) {
+        await selectInstantDelivery(page);
+    } else {
+        await selectManualDelivery(page);
+        await page.waitForTimeout(1000);
+        await setDeliveryHour(page, template["Delivery hour"]);
+        await page.waitForTimeout(1000);
+        await setDeliveryMinute(page, template["Delivery minute"]);
+    }
 
     console.log(`✅ Form filled: "${template.Title}"`);
 }
@@ -98,16 +104,18 @@ async function fillGameDetails(page, game, gameData) {
         return;
     }
 
-    // Section 1 (0-indexed = 0): game-specific attributes (Levels, Details, etc.)
-    const section = page.locator(".g-cu-form-card__section").nth(0);
+    // Section index 0 = Service/type selector (pre-filled by navigation — skip).
+    // Section index 1 = game-specific attributes (Levels, Details, etc.).
+    const section = page.locator(".g-cu-form-card__section").nth(1);
     if ((await section.count()) === 0) {
         console.log("❌ Game details section not found on page");
         return;
     }
 
-    // Each field is a div.col-12 inside the div.row.q-col-gutter-lg wrapper.
-    // Within each col-12: div:nth-child(1) = label col, div:nth-child(2) = input col.
-    const fieldEls = section.locator("div.q-col-gutter-lg > div");
+    // Each field is a col-12 wrapper that contains a label+input row.
+    // The inner columns (col-md-4 label, col-md-8 input) also carry col-12,
+    // so exclude any div that has a col-md-* class to land on field wrappers only.
+    const fieldEls = section.locator(".col-12:not([class*='col-md'])");
 
     for (let i = 0; i < specs.length; i++) {
         const { key, label, type } = specs[i];
@@ -136,28 +144,46 @@ async function fillGameDetails(page, game, gameData) {
 // ─── Title & Description ──────────────────────────────────────────────────────
 
 async function fillTitleAndDescription(page, title, description) {
-    // Section 2 (0-indexed = 1): Title & Description text inputs
-    const section = page.locator(".g-cu-form-card__section").nth(1);
+    // Section index 2: Title & Description (after Service=0, Levels=1).
+    const section = page.locator(".g-cu-form-card__section").nth(2);
     if ((await section.count()) === 0) {
         console.log("❌ Title/Description section not found");
         return;
     }
 
-    const fields = section.locator("div.q-col-gutter-lg > div");
-
+    // Go directly to input/textarea instead of field wrappers. The col-12
+    // structure in this section can have nested col-12s that break index-based
+    // selection. Title is always a single-line input; description is a textarea.
     if (title) {
-        await fillInputField(page, fields.nth(0), title, "Title");
-        await page.waitForTimeout(500);
+        const titleInput = section.locator("input:not([type=hidden])").first();
+        if ((await titleInput.count()) === 0) {
+            console.log("❌ Title input not found");
+        } else {
+            await humanDelay(300, 600);
+            await titleInput.click({ clickCount: 3 });
+            await titleInput.fill(title);
+            console.log(`✅ Filled Title: ${title}`);
+            await page.waitForTimeout(500);
+        }
     }
+
     if (description) {
-        await fillInputField(page, fields.nth(1), description, "Description");
-        await page.waitForTimeout(500);
+        const descInput = section.locator("textarea").first();
+        if ((await descInput.count()) === 0) {
+            console.log("❌ Description textarea not found");
+        } else {
+            await humanDelay(300, 600);
+            await descInput.click({ clickCount: 3 });
+            await descInput.fill(description);
+            console.log("✅ Filled Description");
+            await page.waitForTimeout(500);
+        }
     }
 }
 
 // ─── Pricing ─────────────────────────────────────────────────────────────────
 
-async function fillPricingSection(page, price) {
+async function fillPricingSection(page, price, minQuantity) {
     try {
         const section = page
             .locator(".g-cu-form-card__section:has-text('Pricing')")
@@ -176,6 +202,16 @@ async function fillPricingSection(page, price) {
         await input.fill("");
         await input.type(String(price), { delay: 80 });
         console.log(`✅ Filled price: ${price}`);
+
+        if (minQuantity !== undefined && minQuantity !== null) {
+            const minQtyInput = section.locator("input.q-field__native").nth(1);
+            if ((await minQtyInput.count()) > 0) {
+                await minQtyInput.fill("");
+                await minQtyInput.type(String(minQuantity), { delay: 80 });
+                console.log(`✅ Filled min quantity: ${minQuantity}`);
+            }
+        }
+
         return true;
     } catch (error) {
         console.error("❌ Failed to fill price:", error.message);
@@ -237,41 +273,93 @@ async function fillMediaGallery(page, medias = []) {
 
 async function selectManualDelivery(page) {
     try {
-        const radio = page.locator('div[role="radio"][aria-label="Manual delivery"]');
-        if ((await radio.count()) > 0) {
-            if ((await radio.getAttribute("aria-checked")) !== "true") {
-                await radio.click();
-                console.log("✅ Selected Manual delivery");
-                await page.waitForTimeout(1000);
-            }
-        } else {
+        const radio = await resolveDeliveryRadio(page, "Manual delivery", /manual/i);
+        if (!radio) {
             console.log("❌ Manual delivery radio not found");
+            return;
+        }
+        if ((await radio.getAttribute("aria-checked")) === "true") {
+            console.log("✅ Manual delivery already selected");
+        } else {
+            await radio.click();
+            console.log("✅ Selected Manual delivery");
+            await page.waitForTimeout(1000);
         }
     } catch (error) {
         console.error("❌ Failed to select Manual delivery:", error.message);
     }
 }
 
+async function selectInstantDelivery(page) {
+    try {
+        const radio = await resolveDeliveryRadio(page, "Instant delivery", /instant/i);
+        if (!radio) {
+            console.log("❌ Instant delivery radio not found");
+            return;
+        }
+        if ((await radio.getAttribute("aria-checked")) !== "true") {
+            await radio.click();
+            console.log("✅ Selected Instant delivery");
+            await page.waitForTimeout(1000);
+        }
+    } catch (error) {
+        console.error("❌ Failed to select Instant delivery:", error.message);
+    }
+}
+
+/**
+ * Find a delivery-type radio button. Tries aria-label first (exact match),
+ * then falls back to role+text for cases where g2g changes label casing/wording.
+ */
+async function resolveDeliveryRadio(page, ariaLabel, textPattern) {
+    let radio = page.locator(`div[role="radio"][aria-label="${ariaLabel}"]`);
+    if ((await radio.count()) > 0) return radio.first();
+
+    // Fallback: any role=radio whose visible text contains the keyword
+    radio = page.locator('div[role="radio"]').filter({ hasText: textPattern });
+    if ((await radio.count()) > 0) return radio.first();
+
+    // Last resort: look inside the delivery section for a clickable label
+    radio = page
+        .locator('.g-cu-form-card__section')
+        .filter({ hasText: textPattern })
+        .locator('div[role="radio"]')
+        .first();
+    if ((await radio.count()) > 0) return radio;
+
+    return null;
+}
+
 async function setDeliveryHour(page, hourValue) {
     try {
-        const text    = Number(hourValue) === 1 ? "1 hour" : `${hourValue} hours`;
-        const dropdown = page.locator("div.g-select-text-input .left button").last();
-        if ((await dropdown.count()) === 0) return false;
+        // Try the specific .left selector first; fall back to first button in the container
+        let dropdown = page.locator("div.g-select-text-input .left button").last();
+        if ((await dropdown.count()) === 0) {
+            dropdown = page.locator("div.g-select-text-input button").first();
+        }
+        if ((await dropdown.count()) === 0) {
+            console.log("❌ Delivery hour dropdown button not found");
+            return false;
+        }
 
         await dropdown.click();
         await page.waitForTimeout(500);
 
+        // Match by leading number: "0 hours", "0 hr", "0h", etc.
         const option = page
-            .locator(".q-virtual-scroll__content .q-item__section", { hasText: text })
+            .locator(".q-virtual-scroll__content .q-item__section")
+            .filter({ hasText: new RegExp(`^\\s*${escapeRegex(String(hourValue))}\\b`) })
             .first();
         if ((await option.count()) === 0) {
             await page.keyboard.press("Escape").catch(() => {});
+            console.log(`❌ Delivery hour option not found for value: ${hourValue}`);
             return false;
         }
 
+        const chosenText = await option.innerText().then(t => t.trim()).catch(() => hourValue);
         await option.scrollIntoViewIfNeeded();
         await option.click({ force: true });
-        console.log(`✅ Delivery hour: ${text}`);
+        console.log(`✅ Delivery hour: ${chosenText}`);
         await page.waitForTimeout(500);
         return true;
     } catch (error) {
@@ -283,24 +371,34 @@ async function setDeliveryHour(page, hourValue) {
 
 async function setDeliveryMinute(page, minValue) {
     try {
-        const text    = Number(minValue) === 0 ? "0 min" : `${minValue} mins`;
-        const dropdown = page.locator("div.g-select-text-input .right button").first();
-        if ((await dropdown.count()) === 0) return false;
+        // Try the specific .right selector first; fall back to last button in the container
+        let dropdown = page.locator("div.g-select-text-input .right button").first();
+        if ((await dropdown.count()) === 0) {
+            dropdown = page.locator("div.g-select-text-input button").last();
+        }
+        if ((await dropdown.count()) === 0) {
+            console.log("❌ Delivery minute dropdown button not found");
+            return false;
+        }
 
         await dropdown.click();
         await page.waitForTimeout(500);
 
+        // Match by leading number: "30 mins", "30 min", "30m", etc.
         const option = page
-            .locator(".q-virtual-scroll__content .q-item__section", { hasText: text })
+            .locator(".q-virtual-scroll__content .q-item__section")
+            .filter({ hasText: new RegExp(`^\\s*${escapeRegex(String(minValue))}\\b`) })
             .first();
         if ((await option.count()) === 0) {
             await page.keyboard.press("Escape").catch(() => {});
+            console.log(`❌ Delivery minute option not found for value: ${minValue}`);
             return false;
         }
 
+        const chosenText = await option.innerText().then(t => t.trim()).catch(() => minValue);
         await option.scrollIntoViewIfNeeded();
         await option.click({ force: true });
-        console.log(`✅ Delivery minute: ${text}`);
+        console.log(`✅ Delivery minute: ${chosenText}`);
         await page.waitForTimeout(500);
         return true;
     } catch (error) {
@@ -313,50 +411,84 @@ async function setDeliveryMinute(page, minValue) {
 // ─── Low-level field helpers ──────────────────────────────────────────────────
 
 async function selectDropdownOption(page, fieldEl, value) {
-    const btn     = fieldEl.locator("div:nth-child(2) .g-btn-select").first();
-    const labelEl = fieldEl.locator("div:nth-child(1) .text-font-2nd");
-    const label   = await labelEl.first().innerText().then(t => t.trim()).catch(() => "?");
+    // Label lives in the col-md-4 sub-column; button in the col-md-8 sub-column.
+    // Both are descendants of fieldEl, so we can reach them directly.
+    const label = await fieldEl.locator(".text-font-2nd").first()
+        .innerText().then(t => t.trim()).catch(() => "?");
+
+    const btn = fieldEl.locator(".g-btn-select").first();
 
     try {
         console.log(`🔽 Selecting ${label} = ${value}`);
         await humanDelay(300, 500);
         await btn.click({ force: true });
+        await page.waitForTimeout(500);
 
-        const wrapper = btn.locator(" + div.relative-position > div:not(.g-input-error)");
-        if ((await wrapper.count()) === 0) {
-            console.log(`❌ Dropdown wrapper not found for "${label}"`);
+        // The dropdown card renders inline inside fieldEl (not in a portal).
+        const filterInput = fieldEl.locator('input[placeholder="Type to filter"]').first();
+        if ((await filterInput.count()) === 0) {
+            await ensureDropdownClosed(page, fieldEl, btn);
+            console.log(`❌ Filter input not found for "${label}"`);
             return false;
         }
 
-        const filterInput = wrapper.locator('label input[placeholder="Type to filter"]');
-        if ((await filterInput.count()) === 0) return false;
-
-        await filterInput.first().fill(value);
+        await filterInput.fill(value);
         await page.waitForTimeout(700);
 
-        const menu   = wrapper.locator("div:nth-child(2) .q-virtual-scroll__content");
-        const option = menu.locator(`.q-item .q-item__section:has-text("${value}")`).first();
+        // Prefer exact match; fall back to first visible option after filtering.
+        // g2g may display "70+" or "95+" for API values stored as "70" or "95".
+        const allOptions = fieldEl.locator(".q-item__section");
+        const exactMatch = allOptions.filter({
+            hasText: new RegExp(`^\\s*${escapeRegex(value)}\\s*$`),
+        });
+
+        const option = (await exactMatch.count()) > 0
+            ? exactMatch.first()
+            : allOptions.first();
 
         if ((await option.count()) === 0) {
-            await page.keyboard.press("Escape").catch(() => {});
-            console.log(`❌ Option "${value}" not found in "${label}" dropdown`);
+            await ensureDropdownClosed(page, fieldEl, btn);
+            console.log(`❌ No option found for "${value}" in "${label}" dropdown`);
             return false;
         }
 
+        const chosenText = await option.innerText().then(t => t.trim()).catch(() => value);
         await option.click({ force: true });
         await page.waitForTimeout(600);
-        console.log(`✅ Selected ${label}: ${value}`);
+        console.log(`✅ Selected ${label}: ${chosenText}`);
         return true;
     } catch (error) {
         console.error(`❌ Dropdown "${label}":`, error.message);
-        await page.keyboard.press("Escape").catch(() => {});
+        await ensureDropdownClosed(page, fieldEl, btn);
         return false;
     }
 }
 
+/**
+ * Ensure a g2g inline dropdown is closed.
+ * Pressing Escape alone is unreliable — if it fails, clicking the toggle button
+ * a second time closes it. This prevents the open dropdown from blocking the
+ * next field's button click.
+ */
+async function ensureDropdownClosed(page, fieldEl, btn) {
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.waitForTimeout(300);
+    if ((await fieldEl.locator('input[placeholder="Type to filter"]').count()) > 0) {
+        await btn.click({ force: true }).catch(() => {});
+        await page.waitForTimeout(300);
+    }
+}
+
+function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 async function fillInputField(page, fieldEl, value, label = "field") {
     try {
-        const input = fieldEl.locator(".q-field__native").first();
+        // .q-field__native is the wrapper <div>; the actual editable element is
+        // the <input> or <textarea> inside it (or directly on the element in
+        // some Quasar versions). Target it directly to avoid the fill() error.
+        const input = fieldEl.locator("input:not([type=hidden]), textarea").first();
         if ((await input.count()) === 0) {
             console.log(`❌ Input not found: ${label}`);
             return false;

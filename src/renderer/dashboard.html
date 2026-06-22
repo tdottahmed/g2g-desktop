@@ -164,19 +164,33 @@
     font-size: 12.5px;
     line-height: 1.7;
     background: #0a0d14;
+    user-select: text;
   }
   #log-panel::-webkit-scrollbar { width: 6px; }
   #log-panel::-webkit-scrollbar-track { background: transparent; }
   #log-panel::-webkit-scrollbar-thumb { background: #1e2535; border-radius: 3px; }
 
   .log-line { display: flex; gap: 10px; }
-  .log-time { color: #334155; flex-shrink: 0; font-size: 11.5px; padding-top: 1px; }
-  .log-text { color: #94a3b8; word-break: break-all; }
+  .log-time { color: #334155; flex-shrink: 0; font-size: 11.5px; padding-top: 1px; user-select: text; }
+  .log-text { color: #94a3b8; word-break: break-all; user-select: text; }
   .log-text.success { color: #4ade80; }
   .log-text.error   { color: #f87171; }
   .log-text.warn    { color: #fbbf24; }
   .log-text.info    { color: #60a5fa; }
   .log-text.app     { color: #818cf8; }
+
+  .btn-copy-logs {
+    padding: 3px 9px;
+    font-size: 11px;
+    border-radius: 4px;
+    border: 1px solid #1e2535;
+    background: transparent;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .btn-copy-logs:hover { background: #1e2535; color: #94a3b8; border-color: #2d3748; }
 
   .log-empty {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -419,7 +433,10 @@
 <!-- Log header -->
 <div class="log-header">
   <span>Live Output</span>
-  <span class="log-count" id="log-count">0 lines</span>
+  <div style="display:flex;align-items:center;gap:10px">
+    <button class="btn-copy-logs" id="btn-copy-logs" title="Copy all log lines to clipboard">📋 Copy</button>
+    <span class="log-count" id="log-count">0 lines</span>
+  </div>
 </div>
 
 <!-- Log panel -->

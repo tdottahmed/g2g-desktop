@@ -16,11 +16,11 @@
 
 export const GAME_BRANDS = {
     clash_of_clans:     'Clash of Clans (Global)',
-    brawl_stars:        'Brawl Stars (Global)',
+    brawl_stars:        'BS',
     clash_royale:       'Clash Royale (Global)',
     hay_day:            'Hay Day (Global)',
-    mobile_legends:     'Mobile Legends: Bang Bang (Global)',
-    call_of_duty_mobile: 'Call of Duty: Mobile (Global)',
+    mobile_legends:     'Mobile Legends',
+    call_of_duty_mobile: 'Call of Duty Mobile',
 };
 
 export const GAME_FIELD_SPECS = {
