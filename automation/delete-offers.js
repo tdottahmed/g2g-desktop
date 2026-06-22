@@ -26,22 +26,40 @@ import {
     reportDeleteAllFailed,
 } from "./api-client.js";
 
-const __dirname   = path.dirname(fileURLToPath(import.meta.url));
-const BASE_URL    = process.env.G2G_BASE_URL ?? "https://www.g2g.com";
-const HEADLESS    = process.env.HEADLESS === "true";
-const SLOW_MO     = parseInt(process.env.SLOW_MO ?? "150", 10);
-const COOKIES_DIR = path.resolve(process.env.COOKIES_DIR ?? path.join(__dirname, "cookies"));
+const __dirname      = path.dirname(fileURLToPath(import.meta.url));
+const BASE_URL       = process.env.G2G_BASE_URL ?? "https://www.g2g.com";
+const HEADLESS       = process.env.HEADLESS === "true";
+const SLOW_MO        = parseInt(process.env.SLOW_MO ?? "150", 10);
+const COOKIES_DIR    = path.resolve(process.env.COOKIES_DIR ?? path.join(__dirname, "cookies"));
 const WATCH_INTERVAL = parseInt(process.env.WATCH_INTERVAL_SECONDS ?? "60", 10);
 mkdirSync(COOKIES_DIR, { recursive: true });
 
-// Accounts category UUID on g2g.com (used to find the correct tab link)
+// Accounts category UUID on g2g.com
 const ACCOUNTS_CAT_ID = "5830014a-b974-45c6-9672-b51e83112fb7";
 
-const args    = process.argv.slice(2);
+// Tab selector variants — g2g.com sometimes changes which element carries the link
+const TAB_SELECTORS = [
+    `a[href*="cat_id=${ACCOUNTS_CAT_ID}"]`,
+    `a:has-text('Accounts')`,
+    `button:has-text('Accounts')`,
+    `.q-tab:has-text('Accounts')`,
+];
+
+const args     = process.argv.slice(2);
 const API_MODE = args.includes("--api");
 const DRY_RUN  = args.includes("--dry-run");
 const WATCH    = args.includes("--watch");
 const email    = !API_MODE ? args.find((a) => !a.startsWith("--")) : null;
+
+// ─── Timing helpers ────────────────────────────────────────────────────────────
+
+function ts() {
+    return new Date().toLocaleTimeString();
+}
+
+function elapsed(start) {
+    return `${((Date.now() - start) / 1000).toFixed(1)}s`;
+}
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
@@ -66,7 +84,6 @@ async function main() {
 
     console.log("🗑️  G2G Offer Deleter");
     console.log(`   Account  : ${email}`);
-    console.log(`   Cookies  : ${cookieFile}`);
     console.log(`   Headless : ${HEADLESS}`);
     if (DRY_RUN) console.log("   Mode     : DRY RUN (nothing will be deleted)\n");
 
@@ -87,21 +104,13 @@ async function main() {
     const page    = await context.newPage();
 
     try {
-        // ── Auth ──────────────────────────────────────────────────────────────
-        const loggedIn = await ensureLoggedIn(page, context, {
-            baseUrl: BASE_URL,
-            email,
-            password,
-            cookieFile,
-        });
-
+        const loggedIn = await ensureLoggedIn(page, context, { baseUrl: BASE_URL, email, password, cookieFile });
         if (!loggedIn) {
             console.error("❌  Authentication failed. Exiting.");
             return;
         }
 
-        // ── Delete loop ───────────────────────────────────────────────────────
-        const totalDeleted = await deleteAllOffers(page);
+        const totalDeleted = await deleteAllOffers(page, []);
 
         if (DRY_RUN) {
             console.log("\n✅  Dry run complete — no offers were deleted.");
@@ -115,45 +124,61 @@ async function main() {
     }
 }
 
-// ─── Core deletion loop ───────────────────────────────────────────────────────
+// ─── Core deletion loop ────────────────────────────────────────────────────────
 
-async function deleteAllOffers(page) {
-    let totalDeleted = 0;
-    let round = 0;
+/**
+ * Delete all offers on the Accounts tab, optionally skipping permanent ones.
+ * @param {import('playwright').Page} page
+ * @param {string[]} permanentTitles  — titles of offers that must NOT be deleted
+ */
+async function deleteAllOffers(page, permanentTitles = []) {
+    const hasPermanent = permanentTitles.length > 0;
+    const permanentSet = new Set(
+        permanentTitles.map((t) => t.toLowerCase().trim().substring(0, 50))
+    );
+
+    if (hasPermanent) {
+        console.log(`\n    🛡️  Protected titles (${permanentTitles.length}):`);
+        permanentTitles.forEach((t) => console.log(`          • ${t}`));
+    }
+
+    let totalDeleted  = 0;
+    let round         = 0;
     let prevRemaining = -1;
 
-    console.log("\n" + "─".repeat(55));
+    console.log("\n" + "─".repeat(60));
 
     while (true) {
         round++;
-        console.log(`\n🔄  Round ${round}`);
+        const roundStart = Date.now();
+        console.log(`\n🔄  Round ${round}  [${ts()}]`);
 
-        // ── Step 1: Navigate to offers list ──────────────────────────────────
-        console.log("    🌐  Navigating to offers list...");
-        await page.goto(`${BASE_URL}/offers/list`, {
-            waitUntil: "domcontentloaded",
-            timeout: 30000,
-        });
-        await page.waitForTimeout(3000);
-
-        // ── Step 2: Click the Accounts (live) tab ─────────────────────────────
-        const tabClicked = await clickAccountsTab(page);
-        if (!tabClicked) {
-            console.log("    ⚠️   Could not find Accounts tab — offers may already be gone.");
+        // ── Step 1: Navigate ──────────────────────────────────────────────────
+        const navOk = await navigateToOffersList(page);
+        if (!navOk) {
+            console.log("    ❌  Page failed to load. Stopping.");
             break;
         }
-        await page.waitForTimeout(2500);
 
-        // ── Check remaining count ──────────────────────────────────────────────
-        const remaining = await getRemainingCount(page);
+        // ── Step 2: Click the Accounts tab ───────────────────────────────────
+        const tabClicked = await clickAccountsTab(page);
+        if (!tabClicked) {
+            console.log("    ⚠️   Accounts tab not found — all offers may already be gone.");
+            break;
+        }
+
+        // ── Step 3: Wait for tab content and read count ───────────────────────
+        const remaining = await waitForCountAndRead(page);
         console.log(`    📊  Offers remaining: ${remaining}`);
 
         if (remaining === 0) {
             console.log("    ✅  No more offers to delete.");
             break;
         }
-
-        // Guard: no progress between rounds (avoids infinite loop)
+        if (hasPermanent && remaining <= permanentTitles.length) {
+            console.log(`    ✅  Remaining ${remaining} offer(s) are all permanent — done.`);
+            break;
+        }
         if (remaining === prevRemaining) {
             console.log("    ⚠️   No progress since last round. Stopping.");
             break;
@@ -161,50 +186,55 @@ async function deleteAllOffers(page) {
         prevRemaining = remaining;
 
         if (DRY_RUN) {
-            console.log(`    ℹ️   Dry run — would delete ${remaining} offer(s).`);
+            console.log(`    ℹ️   Dry run — would delete up to ${remaining - permanentTitles.length} offer(s).`);
             break;
         }
 
-        // ── Wait for table rows ───────────────────────────────────────────────
+        // ── Step 4: Wait for table rows ───────────────────────────────────────
         const hasRows = await waitForTableRows(page);
         if (!hasRows) {
             console.log("    ⚠️   Table rows did not appear. Stopping.");
             break;
         }
 
-        // ── Step 3: Select all ────────────────────────────────────────────────
-        const selected = await clickSelectAll(page);
-        if (!selected) {
-            console.log("    ❌  Select-all failed. Stopping.");
+        // ── Step 5: Select rows ───────────────────────────────────────────────
+        let selectedCount;
+        if (hasPermanent) {
+            selectedCount = await selectNonPermanentRows(page, permanentSet);
+        } else {
+            selectedCount = (await clickSelectAll(page)) ? -1 : 0;
+        }
+
+        if (selectedCount === 0) {
+            console.log("    ⚠️   No rows selected — visible rows may all be permanent.");
             break;
         }
-        await page.waitForTimeout(1000);
 
-        // ── Step 4: Click delete button ───────────────────────────────────────
+        // Small pause for Quasar to register the selection before the action bar appears
+        await page.waitForTimeout(400);
+
+        // ── Step 6: Click delete button ───────────────────────────────────────
         const deleteClicked = await clickDeleteButton(page);
         if (!deleteClicked) {
             console.log("    ❌  Delete button not found. Stopping.");
             break;
         }
-        await page.waitForTimeout(1000);
 
-        // ── Step 5: Confirm deletion ──────────────────────────────────────────
+        // ── Step 7: Confirm deletion ──────────────────────────────────────────
         const confirmed = await confirmDeletion(page);
         if (!confirmed) {
             console.log("    ❌  Confirm dialog failed. Stopping.");
             break;
         }
 
-        // Wait for the UI to process the deletion
-        await page.waitForTimeout(3500);
+        // ── Step 8: Wait for deletion to process ──────────────────────────────
+        const after = await waitForCountToChange(page, remaining);
+        const deleted = Math.max(remaining - after, 0);
+        totalDeleted += deleted;
+        console.log(`    🗑️   Deleted ~${deleted} offer(s) this round (${after} remaining) [${elapsed(roundStart)}]`);
 
-        const after = await getRemainingCount(page).catch(() => 0);
-        const deleted = remaining - after;
-        totalDeleted += Math.max(deleted, 0);
-        console.log(`    🗑️   Deleted ~${deleted} offer(s) this round (${after} remaining)`);
-
-        if (after === 0) {
-            console.log("    ✅  All offers deleted.");
+        if (after === 0 || (hasPermanent && after <= permanentTitles.length)) {
+            console.log("    ✅  All deletable offers removed.");
             break;
         }
     }
@@ -212,35 +242,114 @@ async function deleteAllOffers(page) {
     return totalDeleted;
 }
 
-// ─── Step helpers ─────────────────────────────────────────────────────────────
+// ─── Navigation ───────────────────────────────────────────────────────────────
 
-async function clickAccountsTab(page) {
-    // Try the specific cat_id link first
-    const link = page.locator(`a[href*="cat_id=${ACCOUNTS_CAT_ID}"]`).first();
+/**
+ * Navigate to the offers list page and wait for the Quasar SPA to hydrate.
+ * Returns true when the page is interactive, false on timeout.
+ */
+async function navigateToOffersList(page) {
+    console.log("    🌐  Navigating to offers list...");
+    const t0 = Date.now();
 
-    if ((await link.count()) > 0) {
-        await link.scrollIntoViewIfNeeded();
-        await link.click();
-        return true;
+    try {
+        await page.goto(`${BASE_URL}/offers/list`, {
+            waitUntil: "load",
+            timeout: 45000,
+        });
+    } catch (err) {
+        console.log(`    ⚠️   Navigation error: ${err.message}`);
+        return false;
     }
 
-    // Fallback: any visible link / button that says "Accounts"
-    const fallback = page.locator("a:has-text('Accounts'), button:has-text('Accounts')").first();
-    if ((await fallback.count()) > 0) {
-        await fallback.scrollIntoViewIfNeeded();
-        await fallback.click();
+    // Wait for the Quasar tab bar to render (SPA hydration)
+    try {
+        await page.waitForSelector(
+            TAB_SELECTORS.join(", "),
+            { state: "attached", timeout: 25000 }
+        );
+        console.log(`    ✅  Page ready [${elapsed(t0)}]`);
         return true;
+    } catch {
+        console.log(`    ⚠️   Tab bar did not appear after 25s [${elapsed(t0)}]`);
+        return false;
+    }
+}
+
+// ─── Tab interaction ──────────────────────────────────────────────────────────
+
+/**
+ * Click the Accounts tab. Retries up to 3× with increasing back-off.
+ */
+async function clickAccountsTab(page) {
+    const MAX_RETRIES = 3;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        console.log(`    🔍  Locating Accounts tab (attempt ${attempt}/${MAX_RETRIES})...`);
+
+        // Wait for any of the known selectors to be visible
+        const combinedSelector = TAB_SELECTORS.join(", ");
+        try {
+            await page.waitForSelector(combinedSelector, {
+                state: "visible",
+                timeout: 15000,
+            });
+        } catch {
+            console.log(`    ⚠️   Accounts tab not visible yet (attempt ${attempt})`);
+            if (attempt < MAX_RETRIES) {
+                await page.waitForTimeout(2000 * attempt);
+                // Reload page on second retry in case the SPA got stuck
+                if (attempt === 2) await page.reload({ waitUntil: "load", timeout: 30000 }).catch(() => {});
+            }
+            continue;
+        }
+
+        // Prefer the cat_id link (exact match), fall back through the selector list
+        for (const sel of TAB_SELECTORS) {
+            const el = page.locator(sel).first();
+            if ((await el.count()) === 0) continue;
+
+            try {
+                await el.scrollIntoViewIfNeeded();
+                await el.click({ timeout: 5000 });
+                console.log(`    ✅  Clicked Accounts tab`);
+                return true;
+            } catch (err) {
+                console.log(`    ⚠️   Click failed on "${sel}": ${err.message}`);
+            }
+        }
+
+        if (attempt < MAX_RETRIES) await page.waitForTimeout(1500 * attempt);
     }
 
     return false;
 }
 
-async function getRemainingCount(page) {
-    try {
-        // Read the count from the active Accounts tab label, e.g. "Accounts (38)"
-        const link = page.locator(`a[href*="cat_id=${ACCOUNTS_CAT_ID}"]`).first();
-        if ((await link.count()) === 0) return 0;
+// ─── Count reading ─────────────────────────────────────────────────────────────
 
+/**
+ * After clicking the tab, wait for the count badge to stabilise then return it.
+ * Falls back to 0 if the badge never appears (no offers).
+ */
+async function waitForCountAndRead(page) {
+    const link = page.locator(`a[href*="cat_id=${ACCOUNTS_CAT_ID}"]`).first();
+
+    // Wait up to 12s for the count "(N)" to appear inside the tab label
+    try {
+        await page.waitForFunction(
+            (sel) => {
+                const el = document.querySelector(sel);
+                return el && /\(\d+\)/.test(el.textContent ?? "");
+            },
+            `a[href*="cat_id=${ACCOUNTS_CAT_ID}"]`,
+            { timeout: 12000 }
+        );
+    } catch {
+        // Count badge may not appear if there are zero offers — that's fine
+    }
+
+    try {
+        if ((await link.count()) === 0) return 0;
         const text  = await link.innerText({ timeout: 5000 });
         const match = text.match(/\((\d+)\)/);
         return match ? parseInt(match[1], 10) : 0;
@@ -249,11 +358,45 @@ async function getRemainingCount(page) {
     }
 }
 
+/**
+ * After confirming a deletion, poll the count badge until it drops below
+ * `previousCount` or the timeout elapses, then return the new value.
+ */
+async function waitForCountToChange(page, previousCount) {
+    const link = page.locator(`a[href*="cat_id=${ACCOUNTS_CAT_ID}"]`).first();
+
+    try {
+        await page.waitForFunction(
+            ({ sel, prev }) => {
+                const el = document.querySelector(sel);
+                if (!el) return false;
+                const m = (el.textContent ?? "").match(/\((\d+)\)/);
+                return m ? parseInt(m[1], 10) < prev : false;
+            },
+            { sel: `a[href*="cat_id=${ACCOUNTS_CAT_ID}"]`, prev: previousCount },
+            { timeout: 20000 }
+        );
+    } catch {
+        // Count didn't change within 20s — read whatever is there now
+    }
+
+    try {
+        if ((await link.count()) === 0) return 0;
+        const text  = await link.innerText({ timeout: 5000 });
+        const match = text.match(/\((\d+)\)/);
+        return match ? parseInt(match[1], 10) : 0;
+    } catch {
+        return 0;
+    }
+}
+
+// ─── Row helpers ──────────────────────────────────────────────────────────────
+
 async function waitForTableRows(page) {
     try {
         await page.waitForSelector(".q-table tbody tr, table tbody tr", {
             state: "attached",
-            timeout: 12000,
+            timeout: 15000,
         });
         return true;
     } catch {
@@ -261,20 +404,74 @@ async function waitForTableRows(page) {
     }
 }
 
+/**
+ * Select every visible row whose title is NOT in permanentSet.
+ */
+async function selectNonPermanentRows(page, permanentSet) {
+    const rows  = page.locator(".q-table tbody tr");
+    const count = await rows.count();
+    let selected = 0;
+
+    for (let i = 0; i < count; i++) {
+        const row = rows.nth(i);
+
+        let rowTitle = "";
+        try {
+            rowTitle = (
+                await row.locator("td:nth-child(2) .text-body1 span").first().innerText({ timeout: 3000 })
+            ).toLowerCase().trim().substring(0, 50);
+        } catch {
+            try {
+                rowTitle = (await row.innerText({ timeout: 3000 })).toLowerCase().trim().substring(0, 50);
+            } catch {
+                continue;
+            }
+        }
+
+        if (permanentSet.has(rowTitle)) {
+            console.log(`    🛡️   Skipping permanent: "${rowTitle}"`);
+            continue;
+        }
+
+        const checkbox = row.locator("td div[role='checkbox'], td .q-checkbox").first();
+        try {
+            if ((await checkbox.count()) > 0) {
+                const checked = await checkbox.getAttribute("aria-checked").catch(() => "false");
+                if (checked !== "true") await checkbox.click({ force: true });
+            } else {
+                await row.click({ force: true });
+            }
+            selected++;
+            // Small gap between clicks so Quasar can register each selection
+            await page.waitForTimeout(120);
+        } catch (err) {
+            console.log(`    ⚠️   Could not select row: ${err.message}`);
+        }
+    }
+
+    if (selected > 0) console.log(`    ✅  Selected ${selected} deletable row(s)`);
+    return selected;
+}
+
 async function clickSelectAll(page) {
     try {
-        // The select-all is a Quasar q-checkbox in the <th> of the table header
         const checkbox = page.locator("th div[role='checkbox'], th .q-checkbox").first();
         await checkbox.waitFor({ state: "visible", timeout: 10000 });
 
         const checked = await checkbox.getAttribute("aria-checked");
         if (checked === "true") {
-            console.log("    ℹ️   Checkbox already checked — all rows selected");
+            console.log("    ℹ️   Select-all already checked");
             return true;
         }
 
         await checkbox.click({ force: true });
-        await page.waitForTimeout(600);
+
+        // Wait for at least one row to become selected before returning
+        await page.waitForFunction(
+            () => document.querySelector("td div[aria-checked='true'], td .q-checkbox[aria-checked='true']") !== null,
+            { timeout: 5000 }
+        ).catch(() => {});
+
         console.log("    ✅  Selected all visible offers");
         return true;
     } catch (err) {
@@ -283,18 +480,23 @@ async function clickSelectAll(page) {
     }
 }
 
+// ─── Delete / confirm ─────────────────────────────────────────────────────────
+
 async function clickDeleteButton(page) {
+    // The Quasar action bar appears at the bottom once rows are selected
+    const SELECTORS = [
+        "button.text-negative",
+        "button:has(.material-icons:text('delete'))",
+        "button:has-text('Delete')",
+    ];
+
     try {
-        // The fixed bottom action bar appears after selection; delete button has text-negative class
-        await page.waitForSelector(
-            "button.text-negative, button:has(.material-icons:text('delete'))",
-            { state: "visible", timeout: 10000 }
-        );
+        await page.waitForSelector(SELECTORS.join(", "), {
+            state: "visible",
+            timeout: 12000,
+        });
 
-        const btn = page.locator(
-            "button.text-negative, button:has(.material-icons:text('delete'))"
-        ).first();
-
+        const btn = page.locator(SELECTORS.join(", ")).first();
         await btn.scrollIntoViewIfNeeded();
         await btn.click({ force: true });
         console.log("    🖱️   Clicked delete button");
@@ -307,9 +509,9 @@ async function clickDeleteButton(page) {
 
 async function confirmDeletion(page) {
     try {
-        // Quasar dialog appears with a "Confirm" button
+        // Wait for the Quasar confirm dialog
         const dialog = page.locator(".q-dialog__inner .q-card");
-        await dialog.waitFor({ state: "visible", timeout: 10000 });
+        await dialog.waitFor({ state: "visible", timeout: 12000 });
 
         const confirmBtn = dialog.locator("button:has-text('Confirm')").first();
         if ((await confirmBtn.count()) === 0) {
@@ -318,10 +520,10 @@ async function confirmDeletion(page) {
         }
 
         await confirmBtn.click({ force: true });
-        console.log("    ✅  Confirmed — deletion in progress...");
+        console.log("    ✅  Confirmed — waiting for deletion to complete...");
 
-        // Wait for dialog to close before next round
-        await dialog.waitFor({ state: "hidden", timeout: 15000 }).catch(() => {});
+        // Wait for the dialog to close (deletion is processing)
+        await dialog.waitFor({ state: "hidden", timeout: 20000 }).catch(() => {});
         return true;
     } catch (err) {
         console.log(`    ❌  Confirm dialog error: ${err.message}`);
@@ -329,7 +531,7 @@ async function confirmDeletion(page) {
     }
 }
 
-// ─── API mode (driven by admin panel queue_delete_all flag) ──────────────────
+// ─── API mode ─────────────────────────────────────────────────────────────────
 
 async function runApiMode() {
     console.log("🗑️  G2G Delete-All Runner (API mode)");
@@ -350,7 +552,7 @@ async function runApiMode() {
 }
 
 async function runApiOnce() {
-    console.log(`\n[${new Date().toLocaleTimeString()}] Fetching pending delete-all accounts...`);
+    console.log(`\n[${ts()}] Fetching pending delete-all accounts...`);
 
     let data;
     try {
@@ -376,22 +578,28 @@ async function runApiOnce() {
 }
 
 async function runApiUserDelete(user) {
-    const { user_id, email: acctEmail, password } = user;
+    const { user_id, email: acctEmail, password, permanent_titles: permanentTitles = [] } = user;
     const emailPrefix = acctEmail.split("@")[0];
     const cookieFile  = path.join(COOKIES_DIR, `${emailPrefix}.json`);
 
     console.log(`\n👤 Processing: ${acctEmail}`);
+    if (permanentTitles.length > 0) {
+        console.log(`   🛡️  ${permanentTitles.length} permanent offer(s) will be skipped`);
+    }
 
     let browser = null;
     try {
-        browser = await chromium.launch({ headless: HEADLESS, slowMo: SLOW_MO, args: ["--start-maximized"] })
-            .catch((err) => {
-                if (err.message.includes("Executable doesn't exist")) {
-                    console.error("\n❌ Playwright not installed. Run: npx playwright install chromium");
-                    process.exit(1);
-                }
-                throw err;
-            });
+        browser = await chromium.launch({
+            headless: HEADLESS,
+            slowMo: SLOW_MO,
+            args: ["--start-maximized"],
+        }).catch((err) => {
+            if (err.message.includes("Executable doesn't exist")) {
+                console.error("\n❌ Playwright not installed. Run: npx playwright install chromium");
+                process.exit(1);
+            }
+            throw err;
+        });
 
         const context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
         const page    = await context.newPage();
@@ -406,16 +614,19 @@ async function runApiUserDelete(user) {
             return;
         }
 
-        const totalDeleted = await deleteAllOffers(page);
+        const totalDeleted = await deleteAllOffers(page, permanentTitles);
 
         if (DRY_RUN) {
             console.log(`\n   ℹ️  Dry run — no offers deleted.`);
         } else {
             console.log(`\n   ✅ Deleted ${totalDeleted} offer(s)`);
-            await reportDeleteAllComplete(user_id, { deleted_count: totalDeleted, runner_host: process.env.HOSTNAME ?? "local" });
+            await reportDeleteAllComplete(user_id, {
+                deleted_count:   totalDeleted,
+                permanent_count: permanentTitles.length,
+                runner_host:     process.env.HOSTNAME ?? "local",
+            });
         }
 
-        // Persist any refreshed session tokens back to disk
         await saveAuthState(context, cookieFile).catch(() => {});
     } catch (err) {
         console.error(`❌ Fatal error for ${acctEmail}:`, err.message);

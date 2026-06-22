@@ -1,7 +1,7 @@
 const Store = require('electron-store');
 
 const schema = {
-    LARAVEL_API_URL: { type: 'string', default: '' },
+    LARAVEL_API_URL: { type: 'string', default: 'http://localhost:8000' },
     API_KEY: { type: 'string', default: '' },
     HEADLESS: { type: 'boolean', default: false },
     SLOW_MO: { type: 'number', default: 120 },
