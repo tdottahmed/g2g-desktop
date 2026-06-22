@@ -1,6 +1,6 @@
 {
   "name": "g2g-automation-desktop",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "G2G.com offer automation — Windows desktop app",
   "main": "src/main/index.js",
   "scripts": {
