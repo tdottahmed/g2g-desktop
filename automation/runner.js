@@ -18,7 +18,9 @@ import path from "path";
 import { mkdirSync } from "fs";
 import { fileURLToPath } from "url";
 import { chromium } from "playwright";
-import { heartbeat, fetchPending, reportSuccess, reportFailed } from "./api-client.js";
+import { spawn }                                                      from "child_process";
+import { heartbeat, fetchPending, reportSuccess, reportFailed,
+         fetchPendingDeleteAll }                                       from "./api-client.js";
 import { ensureLoggedIn, saveAuthState } from "./utils/auth.js";
 import { navigateToAccountsSection, clickContinueButton } from "./utils/sell.js";
 import { fillOfferForm, submitFormAndAddNew, submitForm } from "./utils/form-filler.js";
@@ -77,6 +79,7 @@ async function checkStatus() {
 async function runOnce() {
     console.log(`\n[${new Date().toLocaleTimeString()}] Fetching pending templates...`);
 
+    // ── Posting ──
     let data;
     try {
         data = await fetchPending();
@@ -89,17 +92,51 @@ async function runOnce() {
 
     if (users.length === 0) {
         console.log("ℹ️  No pending templates right now.");
+    } else {
+        const totalTemplates = users.reduce((sum, u) => sum + u.templates.length, 0);
+        console.log(`📋 Found ${totalTemplates} template(s) across ${users.length} user(s)`);
+
+        for (const userGroup of users) {
+            await processUserGroup(userGroup);
+        }
+    }
+
+    // ── Delete-all queue ──
+    let deleteData;
+    try {
+        deleteData = await fetchPendingDeleteAll();
+    } catch (error) {
+        console.error("❌ Failed to fetch pending delete-all queue:", error.message);
+        console.log("✅ Run complete.");
         return;
     }
 
-    const totalTemplates = users.reduce((sum, u) => sum + u.templates.length, 0);
-    console.log(`📋 Found ${totalTemplates} template(s) across ${users.length} user(s)`);
+    const { users: deleteUsers = [] } = deleteData;
 
-    for (const userGroup of users) {
-        await processUserGroup(userGroup);
+    if (deleteUsers.length > 0) {
+        console.log(`\n🗑️  ${deleteUsers.length} account(s) queued for delete-all — spawning delete-offers.js`);
+        await runDeleteAll();
     }
 
     console.log("✅ Run complete.");
+}
+
+function runDeleteAll() {
+    return new Promise((resolve) => {
+        const child = spawn("node", ["delete-offers.js", "--api"], {
+            cwd:   __dirname,
+            env:   process.env,
+            stdio: "inherit",
+        });
+        child.on("close", (code) => {
+            if (code !== 0) console.warn(`⚠️  delete-offers.js exited with code ${code}`);
+            resolve();
+        });
+        child.on("error", (err) => {
+            console.error("❌ Failed to spawn delete-offers.js:", err.message);
+            resolve();
+        });
+    });
 }
 
 // ─── Per-user processing ──────────────────────────────────────────────────────
