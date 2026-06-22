@@ -36,13 +36,15 @@ const modalCancel    = document.getElementById('modal-cancel');
 const modalCloseBtn  = document.getElementById('modal-close');
 const accountSearch  = document.getElementById('account-search');
 
-const btnRun      = document.getElementById('btn-run');
-const btnWatch    = document.getElementById('btn-watch');
-const btnStop     = document.getElementById('btn-stop');
-const btnDelete    = document.getElementById('btn-delete');
-const btnClear    = document.getElementById('btn-clear');
-const btnTest     = document.getElementById('btn-test');
-const btnSettings = document.getElementById('btn-settings');
+const btnCopyLogs      = document.getElementById('btn-copy-logs');
+const btnRun           = document.getElementById('btn-run');
+const btnWatch         = document.getElementById('btn-watch');
+const btnStop          = document.getElementById('btn-stop');
+const btnDelete        = document.getElementById('btn-delete');
+const btnDeleteNonPerm = document.getElementById('btn-delete-non-perm');
+const btnClear         = document.getElementById('btn-clear');
+const btnTest          = document.getElementById('btn-test');
+const btnSettings      = document.getElementById('btn-settings');
 
 // ── Log rendering ─────────────────────────────────────────────────────────────
 
@@ -103,10 +105,11 @@ function applyStatus(status) {
     const busy = status === 'running' || status === 'watching';
     watchMode  = status === 'watching';
 
-    btnRun.disabled    = busy;
-    btnWatch.disabled  = busy && !watchMode; // allow Stop Watch click
-    btnDelete.disabled = busy;
-    btnStop.disabled   = !busy;
+    btnRun.disabled           = busy;
+    btnWatch.disabled         = busy && !watchMode; // allow Stop Watch click
+    btnDelete.disabled        = busy;
+    btnDeleteNonPerm.disabled = busy;
+    btnStop.disabled          = !busy;
 
     btnWatch.textContent = watchMode ? '⏹ Stop Watch' : '👁 Start Watch';
     btnWatch.className   = watchMode ? 'btn danger' : 'btn success';
@@ -188,13 +191,33 @@ btnStop.addEventListener('click', async () => {
     await api.runnerStop();
 });
 
-btnDelete.addEventListener('click', () => openAccountModal());
+btnDelete.addEventListener('click', () => openAccountModal('delete-all'));
+btnDeleteNonPerm.addEventListener('click', () => openAccountModal('delete-non-permanent'));
 
 btnClear.addEventListener('click', () => {
     logPanel.innerHTML = '';
     logPanel.appendChild(logEmpty);
     lineCount = 0;
     logCount.textContent = '0 lines';
+});
+
+btnCopyLogs.addEventListener('click', () => {
+    const rows = logPanel.querySelectorAll('.log-line');
+    if (rows.length === 0) return;
+
+    const text = [...rows].map(row => {
+        const time = row.querySelector('.log-time')?.textContent ?? '';
+        const msg  = row.querySelector('.log-text')?.textContent ?? '';
+        return `${time}  ${msg}`;
+    }).join('\n');
+
+    navigator.clipboard.writeText(text).then(() => {
+        btnCopyLogs.textContent = '✅ Copied';
+        setTimeout(() => { btnCopyLogs.textContent = '📋 Copy'; }, 1500);
+    }).catch(() => {
+        btnCopyLogs.textContent = '❌ Failed';
+        setTimeout(() => { btnCopyLogs.textContent = '📋 Copy'; }, 1500);
+    });
 });
 
 btnSettings.addEventListener('click', () => api.navigate('settings'));
@@ -218,16 +241,64 @@ btnTest.addEventListener('click', async () => {
 
 // ── Account picker modal ──────────────────────────────────────────────────────
 
-let allAccounts    = [];
-let selectedEmail  = null;
+let allAccounts   = [];
+let selectedEmail = null;
+let selectedUserId = null;
+let modalMode     = 'delete-all'; // 'delete-all' | 'delete-non-permanent'
 
-function openAccountModal() {
+const MODAL_CONFIG = {
+    'delete-all': {
+        icon:    '🗑️',
+        title:   'Delete All Offers',
+        warnIcon:'⚠️',
+        warning: 'This will permanently remove <strong>all live offers</strong> from g2g.com for the selected account. This action cannot be undone.',
+        confirm: '🗑️ Delete All Offers',
+        metaKey: 'total',       // which count to highlight
+        metaLabel: (a) => {
+            const total = a.total_templates_count ?? 0;
+            return total > 0
+                ? `${total} template${total !== 1 ? 's' : ''} total`
+                : 'No templates';
+        },
+    },
+    'delete-non-permanent': {
+        icon:    '🛡',
+        title:   'Delete Non-Permanent Offers',
+        warnIcon:'🛡',
+        warning: 'This will delete all <strong>non-permanent</strong> offer templates from g2g.com for the selected account. Permanent (🛡) offers are protected and will NOT be touched.',
+        confirm: '🛡 Delete Non-Permanent',
+        metaKey: 'non-permanent',
+        metaLabel: (a) => {
+            const n = a.non_permanent_count ?? 0;
+            const t = a.total_templates_count ?? 0;
+            return n > 0
+                ? `${n} non-permanent offer${n !== 1 ? 's' : ''} will be deleted · ${t} total`
+                : `No non-permanent offers · ${t} total`;
+        },
+    },
+};
+
+function openAccountModal(mode = 'delete-all') {
+    modalMode      = mode;
     selectedEmail  = null;
+    selectedUserId = null;
     modalConfirm.disabled = true;
     accountSearch.value   = '';
     modalSearch.style.display = 'none';
     modalBody.innerHTML   = '';
     modalBody.appendChild(modalLoading);
+
+    // Apply mode-specific text
+    const cfg = MODAL_CONFIG[mode];
+    document.getElementById('modal-title-icon').textContent  = cfg.icon;
+    document.getElementById('modal-title-text').textContent  = cfg.title;
+    document.getElementById('modal-warning-icon').textContent = cfg.warnIcon;
+    document.getElementById('modal-warning-text').innerHTML   = cfg.warning;
+    modalConfirm.textContent = cfg.confirm;
+    modalConfirm.className   = mode === 'delete-non-permanent'
+        ? 'btn primary'
+        : 'btn danger';
+
     accountModal.classList.add('show');
 
     api.accountsFetch().then((res) => {
@@ -277,33 +348,35 @@ function renderAccounts(accounts) {
         return;
     }
 
-    accounts.forEach(({ email, active_templates_count, total_templates_count }) => {
+    const cfg = MODAL_CONFIG[modalMode];
+
+    accounts.forEach((acct) => {
+        const { id, email } = acct;
         const card = document.createElement('div');
         card.className = `account-card${selectedEmail === email ? ' selected' : ''}`;
-        card.dataset.email = email;
+        card.dataset.email  = email;
+        card.dataset.userId = id;
 
-        const activeCount = active_templates_count ?? 0;
-        const totalCount  = total_templates_count  ?? 0;
-        const metaClass   = activeCount > 0 ? 'meta-active' : 'meta-none';
-        const metaText    = activeCount > 0
-            ? `${activeCount} active template${activeCount !== 1 ? 's' : ''} · ${totalCount} total`
-            : `No active templates · ${totalCount} total`;
+        const metaText = cfg.metaLabel(acct);
+        const nonPerm  = acct.non_permanent_count ?? 0;
+        const metaClass = nonPerm > 0 ? 'meta-active' : 'meta-none';
 
         card.innerHTML = `
             <div class="account-avatar">👤</div>
             <div class="account-info">
               <div class="account-email" title="${escapeHtml(email)}">${escapeHtml(email)}</div>
-              <div class="account-meta"><span class="${metaClass}">${metaText}</span></div>
+              <div class="account-meta"><span class="${metaClass}">${escapeHtml(metaText)}</span></div>
             </div>
             <div class="account-radio"></div>`;
 
-        card.addEventListener('click', () => selectAccount(email));
+        card.addEventListener('click', () => selectAccount(email, id));
         modalBody.appendChild(card);
     });
 }
 
-function selectAccount(email) {
-    selectedEmail = email;
+function selectAccount(email, userId) {
+    selectedEmail  = email;
+    selectedUserId = userId;
     modalConfirm.disabled = false;
 
     modalBody.querySelectorAll('.account-card').forEach((card) => {
@@ -320,7 +393,7 @@ accountSearch.addEventListener('input', () => {
     if (selectedEmail) {
         const card = modalBody.querySelector(`[data-email="${CSS.escape(selectedEmail)}"]`);
         if (card) card.classList.add('selected');
-        else { selectedEmail = null; modalConfirm.disabled = true; }
+        else { selectedEmail = null; selectedUserId = null; modalConfirm.disabled = true; }
     }
 });
 
@@ -334,17 +407,30 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && accountModal.classList.contains('show')) closeAccountModal();
 });
 
-// Confirm — run the deleter for the chosen account
+// Confirm — dispatch the right deleter based on current modal mode
 modalConfirm.addEventListener('click', async () => {
     if (!selectedEmail) return;
 
     closeAccountModal();
 
-    const { success } = await api.deleterStart(selectedEmail);
-    if (!success) {
-        appendLog('[app] ❌ Could not start deleter — a process may already be running.');
+    if (modalMode === 'delete-non-permanent') {
+        if (!selectedUserId) {
+            appendLog('[app] ❌ Could not start — user ID missing.');
+            return;
+        }
+        const { success } = await api.deleterStartNonPermanent(selectedUserId, selectedEmail);
+        if (!success) {
+            appendLog('[app] ❌ Could not start non-permanent deleter — a process may already be running.');
+        } else {
+            appendLog(`[app] 🛡 Deleting non-permanent offers for ${selectedEmail}…`);
+        }
     } else {
-        appendLog(`[app] 🗑️ Starting delete-all for ${selectedEmail}…`);
+        const { success } = await api.deleterStart(selectedEmail);
+        if (!success) {
+            appendLog('[app] ❌ Could not start deleter — a process may already be running.');
+        } else {
+            appendLog(`[app] 🗑️ Starting delete-all for ${selectedEmail}…`);
+        }
     }
 });
 

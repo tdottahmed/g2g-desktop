@@ -1,104 +1,38 @@
 /**
- * Shared Playwright form-filling helpers for g2g.com offer creation.
- * Used by both post-offers.js (PHP-spawned mode) and runner.js (API mode).
+ * Playwright form-filling helpers for g2g.com offer creation.
+ * Supports all 6 games via GAME_FIELD_SPECS in templates/games.js.
  */
 
-import formStructure from "../templates/offer.js";
+import { GAME_FIELD_SPECS } from "../templates/games.js";
 import { humanDelay } from "./index.js";
 
-export function getSelector(obj, index, defaultValue) {
-    let selector = defaultValue;
-    if (obj && obj.selector) {
-        selector = obj.selector;
-    }
-    return selector.replace(":NUMBER:", index + 1);
-}
+// ─── Public API ───────────────────────────────────────────────────────────────
 
-/** Fill every field in the offer form for one template's data. */
-export async function fillOfferForm(page, inputData) {
-    console.log(`📝 Filling form for: ${inputData.Title}`);
+/** Fill every field in the g2g.com offer form for one template. */
+export async function fillOfferForm(page, template) {
+    const game     = template.game || "clash_of_clans";
+    const gameData = template.game_data || {};
+
+    console.log(`📝 Filling form: "${template.Title}" [${game}]`);
 
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
 
-    const { selector: cardSelector, items } = formStructure;
+    await fillGameDetails(page, game, gameData);
+    await fillTitleAndDescription(page, template.Title, template.Description);
+    await fillPricingSection(page, template["Default price (unit)"], template["Minimum purchase quantity"]);
+    await fillMediaGallery(page, template.mediaData || []);
 
-    for (const [cardIndex, cardObj] of items.entries()) {
-        if (!cardObj) continue;
-
-        const cardSel = getSelector(cardObj, cardIndex, cardSelector);
-        const cardEl  = page.locator(cardSel).first();
-
-        if ((await cardEl.count()) === 0) {
-            console.log(`❌ Card not found: ${cardSel}`);
-            continue;
-        }
-
-        const { items: sectionItems, selector: defaultSectionSelector } = cardObj.sections;
-
-        for (const [sectionIndex, sectionObj] of sectionItems.entries()) {
-            if (!sectionObj) continue;
-
-            const sectionSel = getSelector(sectionObj, sectionIndex, defaultSectionSelector);
-            const sectionEl  = cardEl.locator(sectionSel).first();
-
-            if ((await sectionEl.count()) === 0) {
-                console.log(`❌ Section not found: ${sectionSel}`);
-                continue;
-            }
-
-            console.log(`Processing section: ${sectionObj.name}`);
-
-            const { items: fieldItems, selector: defaultFieldSelector, type: defaultFieldType } = sectionObj.fields;
-
-            for (const [fieldIndex, fieldObj] of fieldItems.entries()) {
-                if (!fieldObj) continue;
-
-                const label    = fieldObj.label;
-                const fieldSel = getSelector(fieldObj, fieldIndex, defaultFieldSelector);
-                const fieldEl  = sectionEl.locator(fieldSel).nth(fieldIndex);
-
-                if ((await fieldEl.count()) === 0) {
-                    console.log(`❌ Field not found: ${fieldSel}`);
-                    continue;
-                }
-
-                const fieldType = fieldObj.type || defaultFieldType;
-                if (!fieldType) {
-                    console.log(`❌ Field type not specified: ${fieldSel}`);
-                    continue;
-                }
-
-                const value = inputData[label];
-
-                switch (fieldType) {
-                    case "dropdown":
-                        await selectDropdownOption(page, fieldEl, value);
-                        await page.waitForTimeout(500);
-                        break;
-                    case "text":
-                        await fillInput(page, fieldEl, value, label);
-                        await page.waitForTimeout(500);
-                        break;
-                    default:
-                        console.log(`❌ Unsupported field type: ${fieldType}`);
-                }
-            }
-        }
-    }
-
-    await fillPricingSection(page, inputData["Default price (unit)"]);
-    await fillMediaGallery(page, inputData.mediaData || []);
     await selectManualDelivery(page);
     await page.waitForTimeout(1000);
-    await setDeliveryHour(page, inputData["Delivery hour"]);
+    await setDeliveryHour(page, 0);
     await page.waitForTimeout(1000);
-    await setDeliveryMinute(page, inputData["Delivery minute"]);
+    await setDeliveryMinute(page, 10);
 
-    console.log(`✅ Form filled: ${inputData.Title}`);
+    console.log(`✅ Form filled: "${template.Title}"`);
 }
 
-/** Submit the current offer form and click 'Add new offer' → 'Continue' for the next one. */
+/** Submit and click 'Add new offer' → 'Continue' to open a blank form for the next offer. */
 export async function submitFormAndAddNew(page) {
     console.log("🚀 Submitting form...");
     await submitForm(page);
@@ -110,7 +44,7 @@ export async function submitFormAndAddNew(page) {
         await successDialog.waitFor({ state: "visible", timeout: 30000 });
         console.log("✅ Success dialog appeared");
     } catch {
-        console.log("⚠️ Success dialog not detected, continuing...");
+        console.log("⚠️  Success dialog not detected, continuing...");
     }
 
     const addNewOfferBtn = page.locator('button:has-text("Add new offer")');
@@ -129,17 +63,14 @@ export async function submitFormAndAddNew(page) {
     }
 }
 
-/** Click the Publish button (final submit). */
+/** Click the Publish button (final submit, no next-offer flow). */
 export async function submitForm(page) {
     try {
-        console.log("🔧 Clicking Publish...");
         const publishBtn = page.locator('button:has-text("Publish")').first();
-
         if ((await publishBtn.count()) === 0) {
             console.log("❌ Publish button not found");
             return false;
         }
-
         await publishBtn.scrollIntoViewIfNeeded();
         await publishBtn.click({ force: true });
         await page.waitForTimeout(1000);
@@ -151,98 +82,136 @@ export async function submitForm(page) {
     }
 }
 
-// ─── Private helpers ──────────────────────────────────────────────────────────
+// ─── Game-specific detail section ────────────────────────────────────────────
 
-async function selectDropdownOption(page, fieldEl, value) {
-    const btn      = fieldEl.locator("div:nth-child(2) .g-btn-select").first();
-    const labelEl  = fieldEl.locator("div:nth-child(1) .text-font-2nd");
-    const labelText = (await labelEl.first().innerText()).trim();
-
-    try {
-        console.log(`Selecting ${labelText} = ${value}`);
-        await humanDelay(300, 500);
-        await btn.click({ force: true });
-
-        const dropdownWrapper = btn.locator(
-            " + div.relative-position > div:not(.g-input-error)"
-        );
-        if ((await dropdownWrapper.count()) === 0) {
-            console.log(`❌ Dropdown wrapper not found for ${labelText}`);
-            return false;
-        }
-
-        const filterInput = dropdownWrapper.locator('label input[placeholder="Type to filter"]');
-        if ((await filterInput.count()) === 0) return false;
-
-        await filterInput.first().fill(value);
-        await page.waitForTimeout(700);
-
-        const dropdownMenu = dropdownWrapper.locator("div:nth-child(2) .q-virtual-scroll__content");
-        if ((await dropdownMenu.count()) === 0) return false;
-
-        const option = dropdownMenu.locator(`.q-item .q-item__section:has-text("${value}")`);
-        if ((await option.count()) === 0) {
-            await page.keyboard.press("Escape").catch(() => {});
-            return false;
-        }
-
-        const firstOption = option.first();
-        const innerHTML   = await firstOption.innerHTML();
-        if (!innerHTML.toLowerCase().includes(value.toLowerCase())) {
-            await page.keyboard.press("Escape").catch(() => {});
-            return false;
-        }
-
-        await firstOption.click({ force: true });
-        await page.waitForTimeout(600);
-        console.log(`✅ Selected ${labelText}: ${value}`);
-        return true;
-    } catch (error) {
-        console.error(`❌ Failed to select ${labelText}:`, error.message);
-        await page.keyboard.press("Escape").catch(() => {});
-        return false;
+async function fillGameDetails(page, game, gameData) {
+    const specs = GAME_FIELD_SPECS[game];
+    if (!specs) {
+        console.log(`⚠️  No field spec for game "${game}" — skipping game details`);
+        return;
     }
-}
 
-async function fillInput(page, fieldEl, value, label = "Input") {
+    // Section index 0 = Service/type selector (pre-filled by navigation — skip).
+    // Section index 1 = game-specific attributes (Levels, Details, etc.).
+    const section = page.locator(".g-cu-form-card__section").nth(1);
     try {
-        const input = fieldEl.locator(".q-field__native").first();
-        if ((await input.count()) === 0) {
-            console.log(`❌ Input not found: ${label}`);
-            return false;
+        await section.waitFor({ state: 'attached', timeout: 10000 });
+    } catch (err) {
+        console.log("❌ Game details section not found on page");
+        return;
+    }
+
+    const dropdownBtns = section.locator(".g-btn-select");
+    const textInputs = section.locator('input:not([type=hidden]):not([placeholder="Type to filter"]), textarea');
+
+    let dropIdx = 0;
+    let textIdx = 0;
+
+    for (let i = 0; i < specs.length; i++) {
+        const { key, label, type } = specs[i];
+        const value = gameData[key];
+
+        if (value === undefined || value === null || value === "") {
+            console.log(`⏭  Skipping ${label} (no value in game_data)`);
+            if (type === "dropdown") dropIdx++;
+            else textIdx++;
+            continue;
         }
-        await humanDelay(800, 1500);
-        await input.click({ clickCount: 3 });
-        await input.fill(value);
-        console.log(`✅ Filled ${label}: ${value}`);
+
+        if (type === "dropdown") {
+            const btn = dropdownBtns.nth(dropIdx);
+            try {
+                await btn.waitFor({ state: 'attached', timeout: 8000 });
+                await selectDropdownOption(page, section, btn, String(value), label);
+            } catch (err) {
+                console.log(`❌ Dropdown not found for ${label} (index ${dropIdx})`);
+            }
+            dropIdx++;
+        } else {
+            const input = textInputs.nth(textIdx);
+            try {
+                await input.waitFor({ state: 'attached', timeout: 8000 });
+                await fillInputField(page, input, String(value), label);
+            } catch (err) {
+                console.log(`❌ Input not found for ${label} (index ${textIdx})`);
+            }
+            textIdx++;
+        }
         await page.waitForTimeout(500);
-        return true;
-    } catch (error) {
-        console.error(`❌ Failed to fill ${label}:`, error.message);
-        return false;
     }
 }
 
-async function fillPricingSection(page, price) {
+// ─── Title & Description ──────────────────────────────────────────────────────
+
+async function fillTitleAndDescription(page, title, description) {
+    // Section index 2: Title & Description (after Service=0, Levels=1).
+    const section = page.locator(".g-cu-form-card__section").nth(2);
+    if ((await section.count()) === 0) {
+        console.log("❌ Title/Description section not found");
+        return;
+    }
+
+    // Go directly to input/textarea instead of field wrappers. The col-12
+    // structure in this section can have nested col-12s that break index-based
+    // selection. Title is always a single-line input; description is a textarea.
+    if (title) {
+        const titleInput = section.locator("input:not([type=hidden])").first();
+        if ((await titleInput.count()) === 0) {
+            console.log("❌ Title input not found");
+        } else {
+            await humanDelay(300, 600);
+            await titleInput.click({ clickCount: 3 });
+            await titleInput.fill(title);
+            console.log(`✅ Filled Title: ${title}`);
+            await page.waitForTimeout(500);
+        }
+    }
+
+    if (description) {
+        const descInput = section.locator("textarea").first();
+        if ((await descInput.count()) === 0) {
+            console.log("❌ Description textarea not found");
+        } else {
+            await humanDelay(300, 600);
+            await descInput.click({ clickCount: 3 });
+            await descInput.fill(description);
+            console.log("✅ Filled Description");
+            await page.waitForTimeout(500);
+        }
+    }
+}
+
+// ─── Pricing ─────────────────────────────────────────────────────────────────
+
+async function fillPricingSection(page, price, minQuantity) {
     try {
-        const pricingSection = page
+        const section = page
             .locator(".g-cu-form-card__section:has-text('Pricing')")
             .first();
-
-        if ((await pricingSection.count()) === 0) {
+        if ((await section.count()) === 0) {
             console.log("❌ Pricing section not found");
             return false;
         }
 
-        const priceInput = pricingSection.locator("input.q-field__native").first();
-        if ((await priceInput.count()) === 0) {
+        const input = section.locator("input.q-field__native").first();
+        if ((await input.count()) === 0) {
             console.log("❌ Price input not found");
             return false;
         }
 
-        await priceInput.fill("");
-        await priceInput.type(price.toString(), { delay: 100 });
+        await input.fill("");
+        await input.type(String(price), { delay: 80 });
         console.log(`✅ Filled price: ${price}`);
+
+        if (minQuantity !== undefined && minQuantity !== null) {
+            const minQtyInput = section.locator("input.q-field__native").nth(1);
+            if ((await minQtyInput.count()) > 0) {
+                await minQtyInput.fill("");
+                await minQtyInput.type(String(minQuantity), { delay: 80 });
+                console.log(`✅ Filled min quantity: ${minQuantity}`);
+            }
+        }
+
         return true;
     } catch (error) {
         console.error("❌ Failed to fill price:", error.message);
@@ -250,15 +219,16 @@ async function fillPricingSection(page, price) {
     }
 }
 
+// ─── Media gallery ────────────────────────────────────────────────────────────
+
 async function fillMediaGallery(page, medias = []) {
     if (!medias.length) return;
 
     try {
-        const mediaSection = page
+        const section = page
             .locator(".g-cu-form-card__section:has-text('Media gallery')")
             .first();
-
-        if ((await mediaSection.count()) === 0) {
+        if ((await section.count()) === 0) {
             console.log("❌ Media gallery section not found");
             return false;
         }
@@ -267,29 +237,27 @@ async function fillMediaGallery(page, medias = []) {
             const { title, Link } = medias[i];
 
             if (i > 0) {
-                const addBtn = mediaSection.locator("button:has-text('Add media')").first();
+                const addBtn = section.locator("button:has-text('Add media')").first();
                 if ((await addBtn.count()) > 0) {
                     await addBtn.click();
                     await page.waitForTimeout(500);
                 }
             }
 
-            const titleInput = mediaSection.locator('input[placeholder="Media title"]').nth(i);
+            const titleInput = section.locator('input[placeholder="Media title"]').nth(i);
             if ((await titleInput.count()) > 0) {
                 await titleInput.fill("");
                 await titleInput.click();
-                await page.evaluate(async (text) => navigator.clipboard.writeText(text), title);
-                await page.keyboard.press("Control+V");
-                console.log(`📋 Pasted media title: ${title}`);
+                await pasteText(page, title);
+                console.log(`📋 Media title: ${title}`);
             }
 
-            const linkInput = mediaSection.locator('input[placeholder="https://"]').nth(i);
+            const linkInput = section.locator('input[placeholder="https://"]').nth(i);
             if ((await linkInput.count()) > 0) {
                 await linkInput.fill("");
                 await linkInput.click();
-                await page.evaluate(async (text) => navigator.clipboard.writeText(text), Link);
-                await page.keyboard.press("Control+V");
-                console.log(`📋 Pasted media link: ${Link}`);
+                await pasteText(page, Link);
+                console.log(`📋 Media link: ${Link}`);
             }
 
             await page.waitForTimeout(300);
@@ -301,47 +269,97 @@ async function fillMediaGallery(page, medias = []) {
     }
 }
 
+// ─── Delivery ─────────────────────────────────────────────────────────────────
+
 async function selectManualDelivery(page) {
     try {
-        const radio = page.locator('div[role="radio"][aria-label="Manual delivery"]');
-        if ((await radio.count()) > 0) {
-            const isChecked = await radio.getAttribute("aria-checked");
-            if (isChecked !== "true") {
-                await radio.click();
-                console.log("✅ Selected Manual delivery");
-                await page.waitForTimeout(1000);
-            } else {
-                console.log("ℹ️ Manual delivery already selected");
-            }
-        } else {
+        const radio = await resolveDeliveryRadio(page, "Manual delivery", /manual/i);
+        if (!radio) {
             console.log("❌ Manual delivery radio not found");
-            return false;
+            return;
         }
-        return true;
+        if ((await radio.getAttribute("aria-checked")) === "true") {
+            console.log("✅ Manual delivery already selected");
+        } else {
+            await radio.click();
+            console.log("✅ Selected Manual delivery");
+            await page.waitForTimeout(1000);
+        }
     } catch (error) {
         console.error("❌ Failed to select Manual delivery:", error.message);
-        return false;
     }
+}
+
+async function selectInstantDelivery(page) {
+    try {
+        const radio = await resolveDeliveryRadio(page, "Instant delivery", /instant/i);
+        if (!radio) {
+            console.log("❌ Instant delivery radio not found");
+            return;
+        }
+        if ((await radio.getAttribute("aria-checked")) !== "true") {
+            await radio.click();
+            console.log("✅ Selected Instant delivery");
+            await page.waitForTimeout(1000);
+        }
+    } catch (error) {
+        console.error("❌ Failed to select Instant delivery:", error.message);
+    }
+}
+
+/**
+ * Find a delivery-type radio button. Tries aria-label first (exact match),
+ * then falls back to role+text for cases where g2g changes label casing/wording.
+ */
+async function resolveDeliveryRadio(page, ariaLabel, textPattern) {
+    let radio = page.locator(`div[role="radio"][aria-label="${ariaLabel}"]`);
+    if ((await radio.count()) > 0) return radio.first();
+
+    // Fallback: any role=radio whose visible text contains the keyword
+    radio = page.locator('div[role="radio"]').filter({ hasText: textPattern });
+    if ((await radio.count()) > 0) return radio.first();
+
+    // Last resort: look inside the delivery section for a clickable label
+    radio = page
+        .locator('.g-cu-form-card__section')
+        .filter({ hasText: textPattern })
+        .locator('div[role="radio"]')
+        .first();
+    if ((await radio.count()) > 0) return radio;
+
+    return null;
 }
 
 async function setDeliveryHour(page, hourValue) {
     try {
-        const hourText   = hourValue == 1 || hourValue == 0 ? `${hourValue} hour` : `${hourValue} hours`;
-        const hourDropdown = page.locator("div.g-select-text-input .left button").last();
-        if ((await hourDropdown.count()) === 0) return false;
-
-        await hourDropdown.click();
-        await page.waitForTimeout(500);
-
-        const option = page.locator(".q-virtual-scroll__content .q-item__section", { hasText: hourText }).first();
-        if ((await option.count()) === 0) {
-            await page.keyboard.press("Escape").catch(() => {});
+        // Try the specific .left selector first; fall back to first button in the container
+        let dropdown = page.locator("div.g-select-text-input .left button").last();
+        if ((await dropdown.count()) === 0) {
+            dropdown = page.locator("div.g-select-text-input button").first();
+        }
+        if ((await dropdown.count()) === 0) {
+            console.log("❌ Delivery hour dropdown button not found");
             return false;
         }
 
+        await dropdown.click();
+        await page.waitForTimeout(500);
+
+        // Match by leading number: "0 hours", "0 hr", "0h", etc.
+        const option = page
+            .locator(".q-virtual-scroll__content .q-item__section")
+            .filter({ hasText: new RegExp(`^\\s*${escapeRegex(String(hourValue))}\\b`) })
+            .first();
+        if ((await option.count()) === 0) {
+            await page.keyboard.press("Escape").catch(() => {});
+            console.log(`❌ Delivery hour option not found for value: ${hourValue}`);
+            return false;
+        }
+
+        const chosenText = await option.innerText().then(t => t.trim()).catch(() => hourValue);
         await option.scrollIntoViewIfNeeded();
         await option.click({ force: true });
-        console.log(`✅ Delivery hour: ${hourText}`);
+        console.log(`✅ Delivery hour: ${chosenText}`);
         await page.waitForTimeout(500);
         return true;
     } catch (error) {
@@ -353,22 +371,34 @@ async function setDeliveryHour(page, hourValue) {
 
 async function setDeliveryMinute(page, minValue) {
     try {
-        const minText   = minValue == 0 ? "0 min" : `${minValue} mins`;
-        const minDropdown = page.locator("div.g-select-text-input .right button").first();
-        if ((await minDropdown.count()) === 0) return false;
-
-        await minDropdown.click();
-        await page.waitForTimeout(500);
-
-        const option = page.locator(".q-virtual-scroll__content .q-item__section", { hasText: minText }).first();
-        if ((await option.count()) === 0) {
-            await page.keyboard.press("Escape").catch(() => {});
+        // Try the specific .right selector first; fall back to last button in the container
+        let dropdown = page.locator("div.g-select-text-input .right button").first();
+        if ((await dropdown.count()) === 0) {
+            dropdown = page.locator("div.g-select-text-input button").last();
+        }
+        if ((await dropdown.count()) === 0) {
+            console.log("❌ Delivery minute dropdown button not found");
             return false;
         }
 
+        await dropdown.click();
+        await page.waitForTimeout(500);
+
+        // Match by leading number: "30 mins", "30 min", "30m", etc.
+        const option = page
+            .locator(".q-virtual-scroll__content .q-item__section")
+            .filter({ hasText: new RegExp(`^\\s*${escapeRegex(String(minValue))}\\b`) })
+            .first();
+        if ((await option.count()) === 0) {
+            await page.keyboard.press("Escape").catch(() => {});
+            console.log(`❌ Delivery minute option not found for value: ${minValue}`);
+            return false;
+        }
+
+        const chosenText = await option.innerText().then(t => t.trim()).catch(() => minValue);
         await option.scrollIntoViewIfNeeded();
         await option.click({ force: true });
-        console.log(`✅ Delivery minute: ${minText}`);
+        console.log(`✅ Delivery minute: ${chosenText}`);
         await page.waitForTimeout(500);
         return true;
     } catch (error) {
@@ -376,4 +406,100 @@ async function setDeliveryMinute(page, minValue) {
         await page.keyboard.press("Escape").catch(() => {});
         return false;
     }
+}
+
+// ─── Low-level field helpers ──────────────────────────────────────────────────
+
+async function selectDropdownOption(page, section, btn, value, label) {
+    try {
+        console.log(`🔽 Selecting ${label} = ${value}`);
+        await humanDelay(300, 500);
+        await btn.click({ force: true });
+        await page.waitForTimeout(500);
+
+        const filterInput = section.locator('input[placeholder="Type to filter"]').first();
+        try {
+            await filterInput.waitFor({ state: 'attached', timeout: 5000 });
+        } catch (err) {
+            await ensureDropdownClosed(page, section, btn);
+            console.log(`❌ Filter input not found for "${label}"`);
+            return false;
+        }
+
+        let filterValue = String(value);
+        await filterInput.fill(filterValue);
+        await page.waitForTimeout(700);
+
+        let allOptions = section.locator(".q-item__section");
+
+        // If no options found and the value looks like a number (e.g., "70000" or "70000+"), 
+        // try formatting with commas since G2G often displays large numbers as "70,000".
+        const numMatch = filterValue.match(/^(\d+)(\+?)$/);
+        if ((await allOptions.count()) === 0 && numMatch) {
+            const formattedValue = Number(numMatch[1]).toLocaleString("en-US") + numMatch[2];
+            if (formattedValue !== filterValue) {
+                console.log(`⚠️  No options found for "${filterValue}". Retrying filter with "${formattedValue}"...`);
+                filterValue = formattedValue;
+                await filterInput.fill(filterValue);
+                await page.waitForTimeout(700);
+                allOptions = section.locator(".q-item__section");
+            }
+        }
+
+        const exactMatch = allOptions.filter({
+            hasText: new RegExp(`^\\s*${escapeRegex(filterValue)}\\s*$`),
+        });
+
+        const option = (await exactMatch.count()) > 0
+            ? exactMatch.first()
+            : allOptions.first();
+
+        if ((await option.count()) === 0) {
+            await ensureDropdownClosed(page, section, btn);
+            console.log(`❌ No option found for "${value}" in "${label}" dropdown`);
+            return false;
+        }
+
+        const chosenText = await option.innerText().then(t => t.trim()).catch(() => value);
+        await option.click({ force: true });
+        await page.waitForTimeout(600);
+        console.log(`✅ Selected ${label}: ${chosenText}`);
+        return true;
+    } catch (error) {
+        console.error(`❌ Dropdown "${label}":`, error.message);
+        await ensureDropdownClosed(page, section, btn);
+        return false;
+    }
+}
+
+async function ensureDropdownClosed(page, section, btn) {
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.waitForTimeout(300);
+    if ((await section.locator('input[placeholder="Type to filter"]').count()) > 0) {
+        await btn.click({ force: true }).catch(() => {});
+        await page.waitForTimeout(300);
+    }
+}
+
+function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function fillInputField(page, input, value, label) {
+    try {
+        await humanDelay(300, 600);
+        await input.click({ clickCount: 3 });
+        await input.fill(value);
+        console.log(`✅ Filled ${label}: ${value}`);
+        await page.waitForTimeout(300);
+        return true;
+    } catch (error) {
+        console.error(`❌ Failed to fill ${label}:`, error.message);
+        return false;
+    }
+}
+
+async function pasteText(page, text) {
+    await page.evaluate((t) => navigator.clipboard.writeText(t), text);
+    await page.keyboard.press("Control+V");
 }
