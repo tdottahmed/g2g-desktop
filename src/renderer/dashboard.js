@@ -40,7 +40,6 @@ const btnCopyLogs      = document.getElementById('btn-copy-logs');
 const btnRun           = document.getElementById('btn-run');
 const btnWatch         = document.getElementById('btn-watch');
 const btnStop          = document.getElementById('btn-stop');
-const btnDelete        = document.getElementById('btn-delete');
 const btnDeleteNonPerm = document.getElementById('btn-delete-non-perm');
 const btnClear         = document.getElementById('btn-clear');
 const btnTest          = document.getElementById('btn-test');
@@ -107,7 +106,6 @@ function applyStatus(status) {
 
     btnRun.disabled           = busy;
     btnWatch.disabled         = busy && !watchMode; // allow Stop Watch click
-    btnDelete.disabled        = busy;
     btnDeleteNonPerm.disabled = busy;
     btnStop.disabled          = !busy;
 
@@ -191,8 +189,7 @@ btnStop.addEventListener('click', async () => {
     await api.runnerStop();
 });
 
-btnDelete.addEventListener('click', () => openAccountModal('delete-all'));
-btnDeleteNonPerm.addEventListener('click', () => openAccountModal('delete-non-permanent'));
+btnDeleteNonPerm.addEventListener('click', () => openAccountModal());
 
 btnClear.addEventListener('click', () => {
     logPanel.innerHTML = '';
@@ -241,45 +238,11 @@ btnTest.addEventListener('click', async () => {
 
 // ── Account picker modal ──────────────────────────────────────────────────────
 
-let allAccounts   = [];
-let selectedEmail = null;
+let allAccounts    = [];
+let selectedEmail  = null;
 let selectedUserId = null;
-let modalMode     = 'delete-all'; // 'delete-all' | 'delete-non-permanent'
 
-const MODAL_CONFIG = {
-    'delete-all': {
-        icon:    '🗑️',
-        title:   'Delete All Offers',
-        warnIcon:'⚠️',
-        warning: 'This will permanently remove <strong>all live offers</strong> from g2g.com for the selected account. This action cannot be undone.',
-        confirm: '🗑️ Delete All Offers',
-        metaKey: 'total',       // which count to highlight
-        metaLabel: (a) => {
-            const total = a.total_templates_count ?? 0;
-            return total > 0
-                ? `${total} template${total !== 1 ? 's' : ''} total`
-                : 'No templates';
-        },
-    },
-    'delete-non-permanent': {
-        icon:    '🛡',
-        title:   'Delete Non-Permanent Offers',
-        warnIcon:'🛡',
-        warning: 'This will delete all <strong>non-permanent</strong> offer templates from g2g.com for the selected account. Permanent (🛡) offers are protected and will NOT be touched.',
-        confirm: '🛡 Delete Non-Permanent',
-        metaKey: 'non-permanent',
-        metaLabel: (a) => {
-            const n = a.non_permanent_count ?? 0;
-            const t = a.total_templates_count ?? 0;
-            return n > 0
-                ? `${n} non-permanent offer${n !== 1 ? 's' : ''} will be deleted · ${t} total`
-                : `No non-permanent offers · ${t} total`;
-        },
-    },
-};
-
-function openAccountModal(mode = 'delete-all') {
-    modalMode      = mode;
+function openAccountModal() {
     selectedEmail  = null;
     selectedUserId = null;
     modalConfirm.disabled = true;
@@ -287,17 +250,6 @@ function openAccountModal(mode = 'delete-all') {
     modalSearch.style.display = 'none';
     modalBody.innerHTML   = '';
     modalBody.appendChild(modalLoading);
-
-    // Apply mode-specific text
-    const cfg = MODAL_CONFIG[mode];
-    document.getElementById('modal-title-icon').textContent  = cfg.icon;
-    document.getElementById('modal-title-text').textContent  = cfg.title;
-    document.getElementById('modal-warning-icon').textContent = cfg.warnIcon;
-    document.getElementById('modal-warning-text').innerHTML   = cfg.warning;
-    modalConfirm.textContent = cfg.confirm;
-    modalConfirm.className   = mode === 'delete-non-permanent'
-        ? 'btn primary'
-        : 'btn danger';
 
     accountModal.classList.add('show');
 
@@ -348,8 +300,6 @@ function renderAccounts(accounts) {
         return;
     }
 
-    const cfg = MODAL_CONFIG[modalMode];
-
     accounts.forEach((acct) => {
         const { id, email } = acct;
         const card = document.createElement('div');
@@ -357,8 +307,11 @@ function renderAccounts(accounts) {
         card.dataset.email  = email;
         card.dataset.userId = id;
 
-        const metaText = cfg.metaLabel(acct);
-        const nonPerm  = acct.non_permanent_count ?? 0;
+        const nonPerm   = acct.non_permanent_count ?? 0;
+        const total     = acct.total_templates_count ?? 0;
+        const metaText  = nonPerm > 0
+            ? `${nonPerm} non-permanent offer${nonPerm !== 1 ? 's' : ''} will be deleted · ${total} total`
+            : `No non-permanent offers · ${total} total`;
         const metaClass = nonPerm > 0 ? 'meta-active' : 'meta-none';
 
         card.innerHTML = `
@@ -407,30 +360,17 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && accountModal.classList.contains('show')) closeAccountModal();
 });
 
-// Confirm — dispatch the right deleter based on current modal mode
+// Confirm — delete non-permanent offers for the selected account
 modalConfirm.addEventListener('click', async () => {
-    if (!selectedEmail) return;
+    if (!selectedEmail || !selectedUserId) return;
 
     closeAccountModal();
 
-    if (modalMode === 'delete-non-permanent') {
-        if (!selectedUserId) {
-            appendLog('[app] ❌ Could not start — user ID missing.');
-            return;
-        }
-        const { success } = await api.deleterStartNonPermanent(selectedUserId, selectedEmail);
-        if (!success) {
-            appendLog('[app] ❌ Could not start non-permanent deleter — a process may already be running.');
-        } else {
-            appendLog(`[app] 🛡 Deleting non-permanent offers for ${selectedEmail}…`);
-        }
+    const { success } = await api.deleterStartNonPermanent(selectedUserId, selectedEmail);
+    if (!success) {
+        appendLog('[app] ❌ Could not start non-permanent deleter — a process may already be running.');
     } else {
-        const { success } = await api.deleterStart(selectedEmail);
-        if (!success) {
-            appendLog('[app] ❌ Could not start deleter — a process may already be running.');
-        } else {
-            appendLog(`[app] 🗑️ Starting delete-all for ${selectedEmail}…`);
-        }
+        appendLog(`[app] 🛡 Deleting non-permanent offers for ${selectedEmail}…`);
     }
 });
 

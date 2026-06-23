@@ -424,7 +424,6 @@
   <button class="btn success" id="btn-watch">👁 Start Watch</button>
   <button class="btn" id="btn-stop" disabled>⏹ Stop</button>
   <div class="sep"></div>
-  <button class="btn warning" id="btn-delete">🗑 Delete All</button>
   <button class="btn" id="btn-delete-non-perm" style="border-color:#0e7490;color:#67e8f9;">🛡 Delete Non-Permanent</button>
   <div class="sep"></div>
   <button class="btn icon-only" id="btn-clear" title="Clear logs">🧹</button>
@@ -461,15 +460,15 @@
 
     <div class="modal-header">
       <div class="modal-title">
-        <span id="modal-title-icon">🗑️</span>
-        <span id="modal-title-text">Delete All Offers</span>
+        <span id="modal-title-icon">🛡</span>
+        <span id="modal-title-text">Delete Non-Permanent Offers</span>
       </div>
       <button class="modal-close" id="modal-close" title="Cancel">✕</button>
     </div>
 
     <div class="modal-warning">
-      <span class="modal-warning-icon" id="modal-warning-icon">⚠️</span>
-      <span id="modal-warning-text">This will permanently remove <strong>all live offers</strong> from g2g.com for the selected account. This action cannot be undone.</span>
+      <span class="modal-warning-icon" id="modal-warning-icon">🛡</span>
+      <span id="modal-warning-text">This will delete all <strong>non-permanent</strong> offer templates from g2g.com for the selected account. Permanent (🛡) offers are protected and will NOT be touched.</span>
     </div>
 
     <div class="modal-search" id="modal-search" style="display:none">
@@ -488,7 +487,7 @@
 
     <div class="modal-footer">
       <button class="btn" id="modal-cancel">Cancel</button>
-      <button class="btn danger" id="modal-confirm" disabled>🗑️ Delete All Offers</button>
+      <button class="btn primary" id="modal-confirm" disabled>🛡 Delete Non-Permanent</button>
     </div>
 
   </div>

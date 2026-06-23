@@ -14,8 +14,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     runnerStop:   ()     => ipcRenderer.invoke('runner:stop'),
     runnerStatus: ()     => ipcRenderer.invoke('runner:status'),
 
-    // Deleter: delete all offers for an account (skips permanent on g2g)
-    deleterStart:            (email)           => ipcRenderer.invoke('deleter:start', email),
     // Deleter: delete only non-permanent offers (fetches list from API)
     deleterStartNonPermanent: (userId, email)  => ipcRenderer.invoke('deleter:start-non-permanent', { userId, email }),
     accountsFetch:           ()               => ipcRenderer.invoke('accounts:fetch'),

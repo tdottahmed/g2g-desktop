@@ -109,15 +109,6 @@ function registerIpcHandlers(getWindow) {
 
     ipcMain.handle('runner:status', () => runnerManager.getStatus());
 
-    // ── Runner: delete ALL offers for a specific account (skips permanent) ──────
-
-    ipcMain.handle('deleter:start', (_e, email) => {
-        if (!email) return { success: false, error: 'No account selected.' };
-        const cfg = configStore.getAll();
-        const ok  = runnerManager.start('delete-offers.js', [email], cfg);
-        return { success: ok };
-    });
-
     // ── Runner: delete non-permanent offers via API list ─────────────────────
 
     ipcMain.handle('deleter:start-non-permanent', (_e, { userId, email }) => {
