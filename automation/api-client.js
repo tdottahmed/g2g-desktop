@@ -42,10 +42,12 @@ export async function heartbeat() {
 
 /**
  * Fetch users and their templates that are ready to be posted now.
+ * @param {number|string|null} accountId  — when set, only returns templates for that account
  * @returns {{ users: Array, schedule_interval_minutes: number, server_time: string }}
  */
-export async function fetchPending() {
-    return request("GET", "/automation/pending");
+export async function fetchPending(accountId = null) {
+    const qs = accountId ? `?account_id=${encodeURIComponent(accountId)}` : "";
+    return request("GET", `/automation/pending${qs}`);
 }
 
 /**

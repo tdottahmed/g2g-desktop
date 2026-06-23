@@ -40,6 +40,7 @@ const btnCopyLogs      = document.getElementById('btn-copy-logs');
 const btnRun           = document.getElementById('btn-run');
 const btnWatch         = document.getElementById('btn-watch');
 const btnStop          = document.getElementById('btn-stop');
+const btnRunAccount    = document.getElementById('btn-run-account');
 const btnDeleteNonPerm = document.getElementById('btn-delete-non-perm');
 const btnClear         = document.getElementById('btn-clear');
 const btnTest          = document.getElementById('btn-test');
@@ -105,6 +106,7 @@ function applyStatus(status) {
     watchMode  = status === 'watching';
 
     btnRun.disabled           = busy;
+    btnRunAccount.disabled    = busy;
     btnWatch.disabled         = busy && !watchMode; // allow Stop Watch click
     btnDeleteNonPerm.disabled = busy;
     btnStop.disabled          = !busy;
@@ -189,7 +191,8 @@ btnStop.addEventListener('click', async () => {
     await api.runnerStop();
 });
 
-btnDeleteNonPerm.addEventListener('click', () => openAccountModal());
+btnRunAccount.addEventListener('click',    () => openAccountModal('run-for-account'));
+btnDeleteNonPerm.addEventListener('click', () => openAccountModal('delete-non-permanent'));
 
 btnClear.addEventListener('click', () => {
     logPanel.innerHTML = '';
@@ -238,18 +241,58 @@ btnTest.addEventListener('click', async () => {
 
 // ── Account picker modal ──────────────────────────────────────────────────────
 
-let allAccounts    = [];
-let selectedEmail  = null;
-let selectedUserId = null;
+let allAccounts      = [];
+let selectedEmail    = null;
+let selectedUserId   = null;
+let currentModalMode = 'delete-non-permanent';
 
-function openAccountModal() {
-    selectedEmail  = null;
-    selectedUserId = null;
+const MODAL_CONFIGS = {
+    'run-for-account': {
+        titleIcon:    '▶',
+        title:        'Run for Account',
+        warnIcon:     'ℹ️',
+        warning:      'Only pending templates assigned to the selected account will be posted. Other accounts are not affected.',
+        confirmText:  '▶ Run Now',
+        confirmClass: 'btn primary',
+        metaLabel: (a) => {
+            const t = a.total_templates_count ?? 0;
+            return t > 0 ? `${t} template${t !== 1 ? 's' : ''}` : 'No templates';
+        },
+    },
+    'delete-non-permanent': {
+        titleIcon:    '🛡',
+        title:        'Delete Non-Permanent Offers',
+        warnIcon:     '🛡',
+        warning:      'This will delete all <strong>non-permanent</strong> offer templates from g2g.com for the selected account. Permanent (🛡) offers are protected and will NOT be touched.',
+        confirmText:  '🛡 Delete Non-Permanent',
+        confirmClass: 'btn primary',
+        metaLabel: (a) => {
+            const n = a.non_permanent_count ?? 0;
+            const t = a.total_templates_count ?? 0;
+            return n > 0
+                ? `${n} non-permanent offer${n !== 1 ? 's' : ''} will be deleted · ${t} total`
+                : `No non-permanent offers · ${t} total`;
+        },
+    },
+};
+
+function openAccountModal(mode = 'delete-non-permanent') {
+    currentModalMode = mode;
+    selectedEmail    = null;
+    selectedUserId   = null;
     modalConfirm.disabled = true;
     accountSearch.value   = '';
     modalSearch.style.display = 'none';
     modalBody.innerHTML   = '';
     modalBody.appendChild(modalLoading);
+
+    const cfg = MODAL_CONFIGS[mode];
+    document.getElementById('modal-title-icon').textContent  = cfg.titleIcon;
+    document.getElementById('modal-title-text').textContent  = cfg.title;
+    document.getElementById('modal-warning-icon').textContent = cfg.warnIcon;
+    document.getElementById('modal-warning-text').innerHTML   = cfg.warning;
+    modalConfirm.textContent = cfg.confirmText;
+    modalConfirm.className   = cfg.confirmClass;
 
     accountModal.classList.add('show');
 
@@ -300,6 +343,8 @@ function renderAccounts(accounts) {
         return;
     }
 
+    const cfg = MODAL_CONFIGS[currentModalMode];
+
     accounts.forEach((acct) => {
         const { id, email } = acct;
         const card = document.createElement('div');
@@ -307,11 +352,8 @@ function renderAccounts(accounts) {
         card.dataset.email  = email;
         card.dataset.userId = id;
 
+        const metaText  = cfg.metaLabel(acct);
         const nonPerm   = acct.non_permanent_count ?? 0;
-        const total     = acct.total_templates_count ?? 0;
-        const metaText  = nonPerm > 0
-            ? `${nonPerm} non-permanent offer${nonPerm !== 1 ? 's' : ''} will be deleted · ${total} total`
-            : `No non-permanent offers · ${total} total`;
         const metaClass = nonPerm > 0 ? 'meta-active' : 'meta-none';
 
         card.innerHTML = `
@@ -360,17 +402,26 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && accountModal.classList.contains('show')) closeAccountModal();
 });
 
-// Confirm — delete non-permanent offers for the selected account
+// Confirm — dispatch based on current modal mode
 modalConfirm.addEventListener('click', async () => {
     if (!selectedEmail || !selectedUserId) return;
 
     closeAccountModal();
 
-    const { success } = await api.deleterStartNonPermanent(selectedUserId, selectedEmail);
-    if (!success) {
-        appendLog('[app] ❌ Could not start non-permanent deleter — a process may already be running.');
+    if (currentModalMode === 'run-for-account') {
+        const { success } = await api.runnerStartForAccount(selectedUserId, 'run');
+        if (!success) {
+            appendLog('[app] ❌ Could not start runner — a process may already be running.');
+        } else {
+            appendLog(`[app] ▶ Running pending templates for ${selectedEmail}…`);
+        }
     } else {
-        appendLog(`[app] 🛡 Deleting non-permanent offers for ${selectedEmail}…`);
+        const { success } = await api.deleterStartNonPermanent(selectedUserId, selectedEmail);
+        if (!success) {
+            appendLog('[app] ❌ Could not start non-permanent deleter — a process may already be running.');
+        } else {
+            appendLog(`[app] 🛡 Deleting non-permanent offers for ${selectedEmail}…`);
+        }
     }
 });
 
