@@ -34,19 +34,22 @@ const COOKIES_DIR   = path.resolve(process.env.COOKIES_DIR ?? path.join(__dirnam
 mkdirSync(COOKIES_DIR, { recursive: true });
 const WATCH_INTERVAL = parseInt(process.env.WATCH_INTERVAL_SECONDS ?? "60", 10);
 
-const args = process.argv.slice(2);
-const MODE = args.includes("--watch")  ? "watch"
-           : args.includes("--status") ? "status"
-           :                              "run";
+const args          = process.argv.slice(2);
+const MODE          = args.includes("--watch")  ? "watch"
+                    : args.includes("--status") ? "status"
+                    :                              "run";
+const accountIdArg  = args.find((a) => a.startsWith("--account-id="));
+const ACCOUNT_ID    = accountIdArg ? accountIdArg.split("=")[1] : null;
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
 async function main() {
     console.log("🤖 g2g Offer Automation Runner");
-    console.log(`   Mode     : ${MODE}`);
-    console.log(`   API URL  : ${process.env.LARAVEL_API_URL}`);
-    console.log(`   Cookies  : ${COOKIES_DIR}`);
-    console.log(`   Headless : ${HEADLESS}`);
+    console.log(`   Mode      : ${MODE}`);
+    console.log(`   Account   : ${ACCOUNT_ID ?? "all"}`);
+    console.log(`   API URL   : ${process.env.LARAVEL_API_URL}`);
+    console.log(`   Cookies   : ${COOKIES_DIR}`);
+    console.log(`   Headless  : ${HEADLESS}`);
 
     if (MODE === "status") {
         await checkStatus();
@@ -82,7 +85,7 @@ async function runOnce() {
     // ── Posting ──
     let data;
     try {
-        data = await fetchPending();
+        data = await fetchPending(ACCOUNT_ID);
     } catch (error) {
         console.error("❌ Failed to fetch pending templates:", error.message);
         return;
@@ -101,21 +104,23 @@ async function runOnce() {
         }
     }
 
-    // ── Delete-all queue ──
-    let deleteData;
-    try {
-        deleteData = await fetchPendingDeleteAll();
-    } catch (error) {
-        console.error("❌ Failed to fetch pending delete-all queue:", error.message);
-        console.log("✅ Run complete.");
-        return;
-    }
+    // ── Delete-all queue (skipped in single-account mode) ────────────────────
+    if (!ACCOUNT_ID) {
+        let deleteData;
+        try {
+            deleteData = await fetchPendingDeleteAll();
+        } catch (error) {
+            console.error("❌ Failed to fetch pending delete-all queue:", error.message);
+            console.log("✅ Run complete.");
+            return;
+        }
 
-    const { users: deleteUsers = [] } = deleteData;
+        const { users: deleteUsers = [] } = deleteData;
 
-    if (deleteUsers.length > 0) {
-        console.log(`\n🗑️  ${deleteUsers.length} account(s) queued for delete-all — spawning delete-offers.js`);
-        await runDeleteAll();
+        if (deleteUsers.length > 0) {
+            console.log(`\n🗑️  ${deleteUsers.length} account(s) queued for delete-all — spawning delete-offers.js`);
+            await runDeleteAll();
+        }
     }
 
     console.log("✅ Run complete.");

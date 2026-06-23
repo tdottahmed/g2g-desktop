@@ -10,9 +10,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     appVersion: () => ipcRenderer.invoke('app:version'),
 
     // Runner (post offers)
-    runnerStart:  (mode) => ipcRenderer.invoke('runner:start', mode),
-    runnerStop:   ()     => ipcRenderer.invoke('runner:stop'),
-    runnerStatus: ()     => ipcRenderer.invoke('runner:status'),
+    runnerStart:           (mode)               => ipcRenderer.invoke('runner:start', mode),
+    runnerStartForAccount: (accountId, mode)    => ipcRenderer.invoke('runner:start-for-account', { accountId, mode }),
+    runnerStop:            ()                   => ipcRenderer.invoke('runner:stop'),
+    runnerStatus:          ()                   => ipcRenderer.invoke('runner:status'),
 
     // Deleter: delete only non-permanent offers (fetches list from API)
     deleterStartNonPermanent: (userId, email)  => ipcRenderer.invoke('deleter:start-non-permanent', { userId, email }),

@@ -102,6 +102,15 @@ function registerIpcHandlers(getWindow) {
         return { success: ok };
     });
 
+    ipcMain.handle('runner:start-for-account', (_e, { accountId, mode = 'run' }) => {
+        if (!accountId) return { success: false, error: 'accountId is required.' };
+        const cfg  = configStore.getAll();
+        const args = [`--account-id=${accountId}`];
+        if (mode === 'watch') args.push('--watch');
+        const ok   = runnerManager.start('runner.js', args, cfg);
+        return { success: ok };
+    });
+
     ipcMain.handle('runner:stop', () => {
         const ok = runnerManager.stop();
         return { success: ok };
