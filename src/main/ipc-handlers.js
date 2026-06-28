@@ -6,24 +6,17 @@ const notify        = require('./notifications');
 const setup         = require('./setup');
 const updater       = require('./updater');
 
-// ── Log-parsing state (per run cycle) ────────────────────────────────────────
+// ── Log parsing ───────────────────────────────────────────────────────────────
 
 let runSuccess = 0;
 let runFailed  = 0;
 
 function parseLogLine(line, getWindow) {
-    // Start of a fetch cycle → reset counters
-    if (line.includes('Fetching pending templates')) {
-        runSuccess = 0;
-        runFailed  = 0;
-        return;
-    }
+    if (line.includes('Fetching pending')) { runSuccess = 0; runFailed = 0; return; }
 
-    // Individual template outcomes
-    if (line.includes('Reported success for template')) { runSuccess++; return; }
-    if (/Template \d+ failed:/i.test(line))             { runFailed++;  return; }
+    if (line.includes('Reported success')) { runSuccess++; return; }
+    if (/failed:/i.test(line))            { runFailed++;  return; }
 
-    // Run finished → fire summary notification + send stats to renderer
     if (line.includes('Run complete')) {
         notify.notifyRunComplete(runSuccess, runFailed);
         const win = getWindow();
@@ -33,18 +26,18 @@ function parseLogLine(line, getWindow) {
         return;
     }
 
-    // Auth failure
-    const authMatch = line.match(/Authentication failed for (\S+)/);
-    if (authMatch) { notify.notifyAuthFailed(authMatch[1].replace(/\.$/, '')); return; }
+    if (line.includes('Authentication failed')) {
+        const m = line.match(/Authentication failed for (\S+)/);
+        if (m) notify.notifyAuthFailed(m[1].replace(/\.$/, ''));
+        return;
+    }
 
-    // API unreachable
-    if (line.includes('Failed to fetch pending templates:')) {
-        const detail = line.replace(/.*Failed to fetch pending templates:\s*/i, '').trim();
+    if (line.includes('Failed to fetch pending')) {
+        const detail = line.replace(/.*Failed to fetch pending[^:]*:\s*/i, '').trim();
         notify.notifyApiError(detail || 'Could not reach the API');
         return;
     }
 
-    // Playwright / Chromium not installed
     if (line.includes('Playwright browser not installed') || line.includes("Executable doesn't exist")) {
         notify.notifyPlaywrightMissing();
     }
@@ -53,6 +46,7 @@ function parseLogLine(line, getWindow) {
 // ── IPC handlers ──────────────────────────────────────────────────────────────
 
 function registerIpcHandlers(getWindow) {
+
     // ── App info ──────────────────────────────────────────────────────────────
 
     ipcMain.handle('app:version', () => app.getVersion());
@@ -67,7 +61,7 @@ function registerIpcHandlers(getWindow) {
         if (data.startWithWindows !== undefined) {
             app.setLoginItemSettings({
                 openAtLogin: Boolean(data.startWithWindows),
-                name: 'G2G Automation',
+                name: 'ZeusX Automation',
             });
         }
 
@@ -93,21 +87,15 @@ function registerIpcHandlers(getWindow) {
         }
     });
 
-    // ── Runner: post offers ───────────────────────────────────────────────────
+    // ── Runner ────────────────────────────────────────────────────────────────
 
     ipcMain.handle('runner:start', (_e, mode = 'run') => {
         const cfg  = configStore.getAll();
-        const args = mode === 'watch' ? ['--watch'] : mode === 'status' ? ['--status'] : [];
-        const ok   = runnerManager.start('runner.js', args, cfg);
-        return { success: ok };
-    });
-
-    ipcMain.handle('runner:start-for-account', (_e, { accountId, mode = 'run' }) => {
-        if (!accountId) return { success: false, error: 'accountId is required.' };
-        const cfg  = configStore.getAll();
-        const args = [`--account-id=${accountId}`];
-        if (mode === 'watch') args.push('--watch');
-        const ok   = runnerManager.start('runner.js', args, cfg);
+        const args = mode === 'watch'     ? ['--watch']
+                   : mode === 'auth-test' ? ['--auth-test']
+                   : mode === 'status'    ? ['--status']
+                   :                        [];
+        const ok = runnerManager.start('runner.js', args, cfg);
         return { success: ok };
     });
 
@@ -118,48 +106,7 @@ function registerIpcHandlers(getWindow) {
 
     ipcMain.handle('runner:status', () => runnerManager.getStatus());
 
-    // ── Runner: delete non-permanent offers via API list ─────────────────────
-
-    ipcMain.handle('deleter:start-non-permanent', (_e, { userId, email }) => {
-        if (!userId || !email) return { success: false, error: 'userId and email are required.' };
-        const cfg  = configStore.getAll();
-        const args = ['--api', `--user-id=${userId}`, email];
-        const ok   = runnerManager.start('delete-specific-offers.js', args, cfg);
-        return { success: ok };
-    });
-
-    // ── Fetch all user accounts from the Laravel API ──────────────────────────
-
-    ipcMain.handle('accounts:fetch', async () => {
-        const cfg = configStore.getAll();
-        if (!cfg.LARAVEL_API_URL || !cfg.API_KEY) {
-            return { success: false, error: 'API not configured.' };
-        }
-        try {
-            const url = `${cfg.LARAVEL_API_URL.replace(/\/$/, '')}/api/automation/user-accounts`;
-            const res = await fetch(url, {
-                headers: { 'X-Api-Key': cfg.API_KEY, Accept: 'application/json' },
-                signal: AbortSignal.timeout(8000),
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const text = await res.text();
-            let body;
-            try {
-                body = JSON.parse(text);
-            } catch {
-                console.error('[accounts:fetch] Non-JSON response (possible network interception):', text.slice(0, 500));
-                return { success: false, error: `Non-JSON response: ${text.slice(0, 200)}` };
-            }
-            if (!body.accounts?.length) {
-                console.warn('[accounts:fetch] Empty accounts. Raw response:', text.slice(0, 500));
-            }
-            return { success: true, accounts: body.accounts ?? [] };
-        } catch (err) {
-            return { success: false, error: err.message };
-        }
-    });
-
-    // ── Setup: browser installation ───────────────────────────────────────────
+    // ── Setup ─────────────────────────────────────────────────────────────────
 
     ipcMain.handle('setup:check', () => ({
         installed:   setup.isBrowserInstalled(),
@@ -177,14 +124,13 @@ function registerIpcHandlers(getWindow) {
 
     // ── Auto-update ───────────────────────────────────────────────────────────
 
-    ipcMain.handle('update:check', () => updater.checkForUpdates(true));
-    ipcMain.handle('update:download', () => updater.downloadUpdate());
-    ipcMain.handle('update:install', () => updater.installUpdate());
+    ipcMain.handle('update:check',         () => updater.checkForUpdates(true));
+    ipcMain.handle('update:download',      () => updater.downloadUpdate());
+    ipcMain.handle('update:install',       () => updater.installUpdate());
     ipcMain.handle('update:open-releases', () => {
-        shell.openExternal('https://github.com/tdottahmed/g2g-desktop/releases/latest');
+        shell.openExternal('https://github.com/tdottahmed/zeusx-desktop/releases/latest');
     });
 
-    // Forward updater events to the renderer and tray
     updater.setGetWindow(getWindow);
 
     // ── Navigation ────────────────────────────────────────────────────────────
@@ -197,7 +143,7 @@ function registerIpcHandlers(getWindow) {
         win.loadFile(`${__dirname}/../renderer/${name}.html`);
     });
 
-    // ── Wire runner output → renderer + notification parser ───────────────────
+    // ── Wire runner output ────────────────────────────────────────────────────
 
     runnerManager.setLogCallback((line) => {
         const win = getWindow();
@@ -205,7 +151,7 @@ function registerIpcHandlers(getWindow) {
         parseLogLine(line, getWindow);
     });
 
-    // ── Wire status changes → renderer + tray + watch notifications ───────────
+    // ── Wire status changes ───────────────────────────────────────────────────
 
     let prevStatus = 'idle';
 
@@ -225,14 +171,12 @@ function registerIpcHandlers(getWindow) {
         prevStatus = status;
     });
 
-    // Mirror updater events to the tray so it stays in sync
     const { autoUpdater } = require('electron-updater');
-
-    autoUpdater.on('checking-for-update', () => tray.setUpdateState('checking'));
-    autoUpdater.on('update-available', (info) => tray.setUpdateState('available', info.version));
+    autoUpdater.on('checking-for-update',  () => tray.setUpdateState('checking'));
+    autoUpdater.on('update-available',     (i) => tray.setUpdateState('available', i.version));
     autoUpdater.on('update-not-available', () => tray.setUpdateState(null));
-    autoUpdater.on('update-downloaded', (info) => tray.setUpdateState('downloaded', info.version));
-    autoUpdater.on('error', () => tray.setUpdateState(null));
+    autoUpdater.on('update-downloaded',    (i) => tray.setUpdateState('downloaded', i.version));
+    autoUpdater.on('error',                () => tray.setUpdateState(null));
 }
 
 module.exports = { registerIpcHandlers };

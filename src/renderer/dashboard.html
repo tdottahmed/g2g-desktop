@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
-<title>G2G Automation</title>
+<title>ZeusX Automation</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -24,13 +24,14 @@
     align-items: center;
     justify-content: space-between;
     padding: 14px 20px;
-    background: #161b27;
-    border-bottom: 1px solid #1e2535;
+    background: #13111f;
+    border-bottom: 1px solid #2a1f3d;
     -webkit-app-region: drag;
   }
   .header-left { display: flex; align-items: center; gap: 10px; }
   .app-logo { font-size: 20px; }
   .app-title { font-size: 15px; font-weight: 600; color: #f1f5f9; letter-spacing: 0.3px; }
+  .app-title span { color: #a78bfa; }
   .header button { -webkit-app-region: no-drag; }
 
   /* ── Update banner ── */
@@ -39,26 +40,26 @@
     align-items: center;
     justify-content: space-between;
     padding: 9px 20px;
-    background: #1c2a4a;
-    border-bottom: 1px solid #2563eb55;
+    background: #1c1535;
+    border-bottom: 1px solid #7c3aed55;
     font-size: 13px;
-    color: #93c5fd;
+    color: #c4b5fd;
   }
   #update-banner.show { display: flex; }
   #update-banner .banner-left { display: flex; align-items: center; gap: 8px; }
   #update-banner .banner-actions { display: flex; gap: 8px; }
   .btn-banner {
-    padding: 4px 12px; border-radius: 5px; border: 1px solid #2563eb;
-    background: #1d4ed8; color: #fff; font-size: 12px; cursor: pointer;
+    padding: 4px 12px; border-radius: 5px; border: 1px solid #7c3aed;
+    background: #6d28d9; color: #fff; font-size: 12px; cursor: pointer;
     transition: background 0.15s;
   }
-  .btn-banner:hover { background: #2563eb; }
+  .btn-banner:hover { background: #7c3aed; }
   .btn-banner.secondary {
     background: transparent; border-color: #334155; color: #64748b;
   }
   .btn-banner.secondary:hover { background: #1e2535; color: #94a3b8; }
   #update-progress-bar {
-    height: 3px; background: #2563eb; border-radius: 2px;
+    height: 3px; background: #7c3aed; border-radius: 2px;
     width: 0; transition: width 0.3s;
     margin-top: 4px;
   }
@@ -69,8 +70,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 20px;
-    background: #12161f;
-    border-bottom: 1px solid #1e2535;
+    background: #0e0c1a;
+    border-bottom: 1px solid #1e1a2e;
     font-size: 13px;
   }
   .status-left { display: flex; align-items: center; gap: 16px; }
@@ -81,12 +82,13 @@
     margin-right: 6px;
     flex-shrink: 0;
   }
-  .dot-idle     { background: #64748b; }
-  .dot-running  { background: #f59e0b; box-shadow: 0 0 6px #f59e0b88; }
-  .dot-watching { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
-  .dot-error    { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
-  .dot-connected    { background: #22c55e; }
-  .dot-disconnected { background: #ef4444; }
+  .dot-idle        { background: #64748b; }
+  .dot-running     { background: #f59e0b; box-shadow: 0 0 6px #f59e0b88; }
+  .dot-watching    { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+  .dot-error       { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
+  .dot-connected   { background: #22c55e; }
+  .dot-disconnected{ background: #ef4444; }
+  .dot-auth-ok     { background: #a78bfa; box-shadow: 0 0 6px #a78bfa88; }
 
   .status-chip {
     display: flex; align-items: center;
@@ -108,18 +110,18 @@
     align-items: center;
     gap: 8px;
     padding: 12px 20px;
-    background: #161b27;
-    border-bottom: 1px solid #1e2535;
+    background: #13111f;
+    border-bottom: 1px solid #1e1a2e;
   }
-  .sep { width: 1px; height: 24px; background: #1e2535; margin: 0 4px; }
+  .sep { width: 1px; height: 24px; background: #2a1f3d; margin: 0 4px; }
 
   /* ── Buttons ── */
   .btn {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 7px 14px;
-    border: 1px solid #2d3748;
+    border: 1px solid #2d2540;
     border-radius: 6px;
-    background: #1e2535;
+    background: #1a1528;
     color: #cbd5e1;
     font-size: 13px;
     font-weight: 500;
@@ -127,20 +129,19 @@
     transition: all 0.15s;
     white-space: nowrap;
   }
-  .btn:hover  { background: #263044; border-color: #3d4f6e; color: #f1f5f9; }
+  .btn:hover  { background: #231c38; border-color: #4c3d7a; color: #f1f5f9; }
   .btn:active { transform: scale(0.97); }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn.primary  { background: #1d4ed8; border-color: #2563eb; color: #fff; }
-  .btn.primary:hover { background: #2563eb; }
+
+  .btn.primary  { background: #5b21b6; border-color: #7c3aed; color: #fff; }
+  .btn.primary:hover { background: #6d28d9; }
+  .btn.auth     { background: #1e1a2e; border-color: #a78bfa; color: #c4b5fd; }
+  .btn.auth:hover { background: #2d2050; border-color: #c4b5fd; color: #ede9fe; }
   .btn.success  { background: #166534; border-color: #16a34a; color: #bbf7d0; }
   .btn.success:hover { background: #15803d; }
   .btn.danger   { background: #7f1d1d; border-color: #dc2626; color: #fecaca; }
   .btn.danger:hover { background: #991b1b; }
-  .btn.warning  { background: #78350f; border-color: #d97706; color: #fde68a; }
-  .btn.warning:hover { background: #92400e; }
   .btn.icon-only { padding: 7px 10px; }
-
-  .icon { font-size: 15px; line-height: 1; }
 
   /* ── Log panel ── */
   .log-header {
@@ -150,11 +151,11 @@
     font-weight: 600;
     letter-spacing: 0.8px;
     text-transform: uppercase;
-    color: #475569;
+    color: #4a3f6b;
     background: #0f1117;
-    border-bottom: 1px solid #1a2030;
+    border-bottom: 1px solid #16112a;
   }
-  .log-header .log-count { font-size: 11px; color: #334155; font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .log-header .log-count { font-size: 11px; color: #2d2540; font-weight: 400; text-transform: none; letter-spacing: 0; }
 
   #log-panel {
     flex: 1;
@@ -163,217 +164,49 @@
     font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
     font-size: 12.5px;
     line-height: 1.7;
-    background: #0a0d14;
+    background: #0a0810;
     user-select: text;
   }
   #log-panel::-webkit-scrollbar { width: 6px; }
   #log-panel::-webkit-scrollbar-track { background: transparent; }
-  #log-panel::-webkit-scrollbar-thumb { background: #1e2535; border-radius: 3px; }
+  #log-panel::-webkit-scrollbar-thumb { background: #2d2540; border-radius: 3px; }
 
   .log-line { display: flex; gap: 10px; }
-  .log-time { color: #334155; flex-shrink: 0; font-size: 11.5px; padding-top: 1px; user-select: text; }
-  .log-text { color: #94a3b8; word-break: break-all; user-select: text; }
+  .log-time { color: #2d2540; flex-shrink: 0; font-size: 11.5px; padding-top: 1px; user-select: text; }
+  .log-text { color: #7c6faa; word-break: break-all; user-select: text; }
   .log-text.success { color: #4ade80; }
   .log-text.error   { color: #f87171; }
   .log-text.warn    { color: #fbbf24; }
-  .log-text.info    { color: #60a5fa; }
+  .log-text.info    { color: #a78bfa; }
   .log-text.app     { color: #818cf8; }
 
   .btn-copy-logs {
-    padding: 3px 9px;
-    font-size: 11px;
-    border-radius: 4px;
-    border: 1px solid #1e2535;
-    background: transparent;
-    color: #475569;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
+    padding: 3px 9px; font-size: 11px;
+    border-radius: 4px; border: 1px solid #2d2540;
+    background: transparent; color: #4a3f6b;
+    cursor: pointer; transition: all 0.15s; font-family: inherit;
   }
-  .btn-copy-logs:hover { background: #1e2535; color: #94a3b8; border-color: #2d3748; }
+  .btn-copy-logs:hover { background: #1a1528; color: #7c6faa; border-color: #3d3060; }
 
   .log-empty {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    height: 100%;
-    color: #1e2535;
-    font-size: 14px;
-    gap: 8px;
+    height: 100%; color: #2d2540; font-size: 14px; gap: 8px;
   }
   .log-empty .log-empty-icon { font-size: 32px; }
-
-  /* ── Account Picker Modal ── */
-  .modal-backdrop {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.7);
-    backdrop-filter: blur(3px);
-    z-index: 100;
-    align-items: center;
-    justify-content: center;
-  }
-  .modal-backdrop.show { display: flex; }
-
-  .modal {
-    background: #161b27;
-    border: 1px solid #1e2535;
-    border-radius: 12px;
-    width: 460px;
-    max-width: calc(100vw - 40px);
-    max-height: calc(100vh - 80px);
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
-    overflow: hidden;
-  }
-
-  .modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 18px 20px 14px;
-    border-bottom: 1px solid #1e2535;
-    flex-shrink: 0;
-  }
-  .modal-title {
-    display: flex; align-items: center; gap: 9px;
-    font-size: 15px; font-weight: 600; color: #f1f5f9;
-  }
-  .modal-close {
-    background: none; border: none; color: #475569; font-size: 18px;
-    cursor: pointer; padding: 2px 6px; border-radius: 4px; line-height: 1;
-    transition: color 0.15s, background 0.15s;
-  }
-  .modal-close:hover { color: #94a3b8; background: #1e2535; }
-
-  .modal-warning {
-    display: flex; align-items: flex-start; gap: 10px;
-    margin: 14px 20px 0;
-    padding: 10px 12px;
-    background: #2d1a05;
-    border: 1px solid #92400e;
-    border-radius: 7px;
-    font-size: 12.5px;
-    color: #fbbf24;
-    line-height: 1.5;
-    flex-shrink: 0;
-  }
-  .modal-warning-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
-
-  .modal-search {
-    padding: 12px 20px 8px;
-    flex-shrink: 0;
-  }
-  .search-input-wrap { position: relative; }
-  .search-icon {
-    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
-    font-size: 14px; color: #334155; pointer-events: none;
-  }
-  .search-input {
-    width: 100%; padding: 8px 12px 8px 32px;
-    background: #0f1117; border: 1px solid #1e2535; border-radius: 7px;
-    color: #e2e8f0; font-size: 13px; font-family: inherit; outline: none;
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-  .search-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px #3b82f61a; }
-  .search-input::placeholder { color: #2d3748; }
-
-  .modal-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 4px 20px 12px;
-    min-height: 80px;
-  }
-  .modal-body::-webkit-scrollbar { width: 5px; }
-  .modal-body::-webkit-scrollbar-thumb { background: #1e2535; border-radius: 3px; }
-
-  /* Loading / error / empty states */
-  .modal-state {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 32px 16px;
-    color: #334155;
-    font-size: 13px;
-    gap: 8px;
-    text-align: center;
-  }
-  .modal-state .state-icon { font-size: 28px; }
-  .modal-state.error-state { color: #f87171; }
-
-  /* Account cards */
-  .account-card {
-    display: flex; align-items: center; gap: 12px;
-    padding: 11px 14px;
-    border: 1px solid #1e2535;
-    border-radius: 8px;
-    margin-bottom: 7px;
-    cursor: pointer;
-    transition: all 0.15s;
-    user-select: none;
-  }
-  .account-card:hover { background: #1a2030; border-color: #2d3748; }
-  .account-card.selected {
-    background: #1a2d4a;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 1px #2563eb33;
-  }
-  .account-avatar {
-    width: 36px; height: 36px; border-radius: 50%;
-    background: #1e2535;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 15px; flex-shrink: 0;
-    border: 1.5px solid #2d3748;
-    transition: border-color 0.15s;
-  }
-  .account-card.selected .account-avatar { border-color: #2563eb; background: #1d3a6a; }
-  .account-info { flex: 1; min-width: 0; }
-  .account-email {
-    font-size: 13px; font-weight: 500; color: #e2e8f0;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .account-meta { font-size: 11.5px; color: #475569; margin-top: 2px; }
-  .account-meta .meta-active { color: #22c55e; }
-  .account-meta .meta-none   { color: #334155; }
-  .account-radio {
-    width: 18px; height: 18px; border-radius: 50%;
-    border: 2px solid #2d3748;
-    flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    transition: all 0.15s;
-  }
-  .account-card.selected .account-radio {
-    border-color: #2563eb;
-    background: #2563eb;
-  }
-  .account-card.selected .account-radio::after {
-    content: '';
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: #fff;
-    display: block;
-  }
-
-  .modal-footer {
-    display: flex; align-items: center; justify-content: flex-end; gap: 10px;
-    padding: 14px 20px;
-    border-top: 1px solid #1e2535;
-    flex-shrink: 0;
-    background: #12161f;
-  }
 
   /* ── Footer ── */
   .footer {
     padding: 6px 20px;
     background: #0f1117;
-    border-top: 1px solid #1a2030;
+    border-top: 1px solid #16112a;
     font-size: 11px;
-    color: #334155;
+    color: #2d2540;
     display: flex;
     align-items: center;
     justify-content: space-between;
   }
-  .footer-left { display: flex; gap: 16px; }
-  .footer span  { color: #475569; }
-  .footer .version { color: #1e2535; font-size: 10.5px; }
+  .footer span  { color: #4a3f6b; }
+  .footer .version { color: #2d2540; font-size: 10.5px; }
 </style>
 </head>
 <body>
@@ -381,8 +214,8 @@
 <!-- Header -->
 <div class="header">
   <div class="header-left">
-    <span class="app-logo">🤖</span>
-    <span class="app-title">G2G Automation</span>
+    <span class="app-logo">⚡</span>
+    <span class="app-title">ZeusX <span>Automation</span></span>
   </div>
   <button class="btn icon-only" id="btn-settings" title="Settings">⚙️</button>
 </div>
@@ -412,20 +245,19 @@
       API: <span id="api-status-text" style="margin-left:4px">—</span>
     </div>
     <div class="run-stats" id="run-stats" style="display:none">
-      <span>Last run: <span class="stat-ok" id="stat-ok">0</span> posted · <span class="stat-err" id="stat-err">0</span> failed</span>
+      <span>Last run: <span class="stat-ok" id="stat-ok">0</span> ok · <span class="stat-err" id="stat-err">0</span> failed</span>
     </div>
   </div>
-  <button class="btn" id="btn-test" style="padding:4px 10px; font-size:11px;">Test Connection</button>
+  <button class="btn" id="btn-test" style="padding:4px 10px;font-size:11px;">Test API</button>
 </div>
 
 <!-- Toolbar -->
 <div class="toolbar">
-  <button class="btn primary" id="btn-run" title="Post pending templates for all accounts">▶ Run All</button>
-  <button class="btn" id="btn-run-account" title="Post pending templates for one specific account" style="border-color:#6366f1;color:#a5b4fc;">▶ Run Account</button>
-  <button class="btn success" id="btn-watch" title="Poll all accounts on a recurring interval">👁 Start Watch</button>
-  <button class="btn" id="btn-stop" disabled>⏹ Stop</button>
+  <button class="btn auth" id="btn-auth-test" title="Verify ZeusX login session">🔐 Test Auth</button>
   <div class="sep"></div>
-  <button class="btn" id="btn-delete-non-perm" style="border-color:#0e7490;color:#67e8f9;">🛡 Delete Non-Permanent</button>
+  <button class="btn primary" id="btn-run" title="Run offer automation once">▶ Run</button>
+  <button class="btn success" id="btn-watch" title="Poll offers on a recurring interval">👁 Start Watch</button>
+  <button class="btn" id="btn-stop" disabled>⏹ Stop</button>
   <div class="sep"></div>
   <button class="btn icon-only" id="btn-clear" title="Clear logs">🧹</button>
 </div>
@@ -442,56 +274,15 @@
 <!-- Log panel -->
 <div id="log-panel">
   <div class="log-empty" id="log-empty">
-    <span class="log-empty-icon">📋</span>
-    <span>No output yet. Press Run Once or Start Watch to begin.</span>
+    <span class="log-empty-icon">⚡</span>
+    <span>No output yet. Press Test Auth to verify your ZeusX session.</span>
   </div>
 </div>
 
 <!-- Footer -->
 <div class="footer">
-  <div class="footer-left">
-    <span>Last activity: <span id="last-run">—</span></span>
-  </div>
+  <div>Last activity: <span id="last-run">—</span></div>
   <span class="version" id="app-version"></span>
-</div>
-
-<!-- Account Picker Modal -->
-<div class="modal-backdrop" id="account-modal">
-  <div class="modal">
-
-    <div class="modal-header">
-      <div class="modal-title">
-        <span id="modal-title-icon">🛡</span>
-        <span id="modal-title-text">Delete Non-Permanent Offers</span>
-      </div>
-      <button class="modal-close" id="modal-close" title="Cancel">✕</button>
-    </div>
-
-    <div class="modal-warning">
-      <span class="modal-warning-icon" id="modal-warning-icon">🛡</span>
-      <span id="modal-warning-text">This will delete all <strong>non-permanent</strong> offer templates from g2g.com for the selected account. Permanent (🛡) offers are protected and will NOT be touched.</span>
-    </div>
-
-    <div class="modal-search" id="modal-search" style="display:none">
-      <div class="search-input-wrap">
-        <span class="search-icon">🔍</span>
-        <input class="search-input" id="account-search" type="text" placeholder="Search accounts…" autocomplete="off" />
-      </div>
-    </div>
-
-    <div class="modal-body" id="modal-body">
-      <div class="modal-state" id="modal-loading">
-        <span class="state-icon">⏳</span>
-        <span>Fetching accounts…</span>
-      </div>
-    </div>
-
-    <div class="modal-footer">
-      <button class="btn" id="modal-cancel">Cancel</button>
-      <button class="btn primary" id="modal-confirm" disabled>🛡 Delete Non-Permanent</button>
-    </div>
-
-  </div>
 </div>
 
 <script src="dashboard.js"></script>

@@ -578,13 +578,16 @@ async function runApiOnce() {
 }
 
 async function runApiUserDelete(user) {
-    const { user_id, email: acctEmail, password, permanent_titles: permanentTitles = [] } = user;
+    const { user_id, email: acctEmail, password, permanent_titles: permanentTitles = [], queue_delete_game: deleteGame = null } = user;
     const emailPrefix = acctEmail.split("@")[0];
     const cookieFile  = path.join(COOKIES_DIR, `${emailPrefix}.json`);
 
     console.log(`\n👤 Processing: ${acctEmail}`);
+    if (deleteGame) {
+        console.log(`   🎮  Game filter: ${deleteGame} (only this game's non-permanent offers will be deleted)`);
+    }
     if (permanentTitles.length > 0) {
-        console.log(`   🛡️  ${permanentTitles.length} permanent offer(s) will be skipped`);
+        console.log(`   🛡️  ${permanentTitles.length} offer(s) will be skipped (permanent + other games)`);
     }
 
     let browser = null;

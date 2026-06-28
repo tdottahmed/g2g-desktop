@@ -1,50 +1,38 @@
 const api = window.electronAPI;
 
-const LOG_MAX = 500; // FIFO cap
+const LOG_MAX = 500;
 
 let lineCount = 0;
 let watchMode = false;
 
-const logPanel     = document.getElementById('log-panel');
-const logEmpty     = document.getElementById('log-empty');
-const logCount     = document.getElementById('log-count');
-const lastRun      = document.getElementById('last-run');
-const runnerDot    = document.getElementById('runner-dot');
-const runnerText   = document.getElementById('runner-status-text');
-const apiDot       = document.getElementById('api-dot');
-const apiText      = document.getElementById('api-status-text');
-const runStats     = document.getElementById('run-stats');
-const statOk       = document.getElementById('stat-ok');
-const statErr      = document.getElementById('stat-err');
-const appVersion   = document.getElementById('app-version');
+const logPanel   = document.getElementById('log-panel');
+const logEmpty   = document.getElementById('log-empty');
+const logCount   = document.getElementById('log-count');
+const lastRun    = document.getElementById('last-run');
+const runnerDot  = document.getElementById('runner-dot');
+const runnerText = document.getElementById('runner-status-text');
+const apiDot     = document.getElementById('api-dot');
+const apiText    = document.getElementById('api-status-text');
+const runStats   = document.getElementById('run-stats');
+const statOk     = document.getElementById('stat-ok');
+const statErr    = document.getElementById('stat-err');
+const appVersion = document.getElementById('app-version');
 
-const updateBanner  = document.getElementById('update-banner');
-const updateBannerIcon = document.getElementById('update-banner-icon');
-const updateBannerText = document.getElementById('update-banner-text');
+const updateBanner      = document.getElementById('update-banner');
+const updateBannerIcon  = document.getElementById('update-banner-icon');
+const updateBannerText  = document.getElementById('update-banner-text');
 const updateProgressBar = document.getElementById('update-progress-bar');
 const btnUpdateAction   = document.getElementById('btn-update-action');
 const btnUpdateDismiss  = document.getElementById('btn-update-dismiss');
 
-// ── Account picker modal refs ──────────────────────────────────────────────────
-
-const accountModal   = document.getElementById('account-modal');
-const modalBody      = document.getElementById('modal-body');
-const modalLoading   = document.getElementById('modal-loading');
-const modalSearch    = document.getElementById('modal-search');
-const modalConfirm   = document.getElementById('modal-confirm');
-const modalCancel    = document.getElementById('modal-cancel');
-const modalCloseBtn  = document.getElementById('modal-close');
-const accountSearch  = document.getElementById('account-search');
-
-const btnCopyLogs      = document.getElementById('btn-copy-logs');
-const btnRun           = document.getElementById('btn-run');
-const btnWatch         = document.getElementById('btn-watch');
-const btnStop          = document.getElementById('btn-stop');
-const btnRunAccount    = document.getElementById('btn-run-account');
-const btnDeleteNonPerm = document.getElementById('btn-delete-non-perm');
-const btnClear         = document.getElementById('btn-clear');
-const btnTest          = document.getElementById('btn-test');
-const btnSettings      = document.getElementById('btn-settings');
+const btnAuthTest  = document.getElementById('btn-auth-test');
+const btnRun       = document.getElementById('btn-run');
+const btnWatch     = document.getElementById('btn-watch');
+const btnStop      = document.getElementById('btn-stop');
+const btnClear     = document.getElementById('btn-clear');
+const btnCopyLogs  = document.getElementById('btn-copy-logs');
+const btnTest      = document.getElementById('btn-test');
+const btnSettings  = document.getElementById('btn-settings');
 
 // ── Log rendering ─────────────────────────────────────────────────────────────
 
@@ -54,20 +42,15 @@ function classify(line) {
     if (l.includes('✅') || l.includes('success')) return 'success';
     if (l.includes('⚠️') || l.includes('warning') || l.includes('warn')) return 'warn';
     if (l.startsWith('[app]')) return 'app';
-    if (l.includes('ℹ️') || l.includes('📋') || l.includes('👤') || l.includes('🤖')) return 'info';
+    if (l.includes('ℹ️') || l.includes('⚡') || l.includes('🔐') || l.includes('🍪')) return 'info';
     return '';
 }
 
 function appendLog(line) {
-    // Remove placeholder
     if (logEmpty.parentNode) logEmpty.remove();
 
-    // FIFO: drop oldest line when capped
     const rows = logPanel.querySelectorAll('.log-line');
-    if (rows.length >= LOG_MAX) {
-        rows[0].remove();
-        lineCount--;
-    }
+    if (rows.length >= LOG_MAX) { rows[0].remove(); lineCount--; }
 
     lineCount++;
     logCount.textContent = `${lineCount} line${lineCount !== 1 ? 's' : ''}`;
@@ -89,7 +72,6 @@ function appendLog(line) {
     row.appendChild(ts);
     row.appendChild(txt);
     logPanel.appendChild(row);
-
     logPanel.scrollTop = logPanel.scrollHeight;
 }
 
@@ -105,14 +87,13 @@ function applyStatus(status) {
     const busy = status === 'running' || status === 'watching';
     watchMode  = status === 'watching';
 
-    btnRun.disabled           = busy;
-    btnRunAccount.disabled    = busy;
-    btnWatch.disabled         = busy && !watchMode; // allow Stop Watch click
-    btnDeleteNonPerm.disabled = busy;
-    btnStop.disabled          = !busy;
+    btnAuthTest.disabled = busy;
+    btnRun.disabled      = busy;
+    btnWatch.disabled    = busy && !watchMode;
+    btnStop.disabled     = !busy;
 
     btnWatch.textContent = watchMode ? '⏹ Stop Watch' : '👁 Start Watch';
-    btnWatch.className   = watchMode ? 'btn danger' : 'btn success';
+    btnWatch.className   = watchMode ? 'btn danger'   : 'btn success';
 }
 
 // ── Run stats ─────────────────────────────────────────────────────────────────
@@ -145,8 +126,6 @@ function applyUpdateStatus({ state, version }) {
         updateReadyToInstall = true;
     } else if (state === 'error') {
         updateBanner.classList.remove('show');
-    } else if (state === 'not-available' || state === 'checking') {
-        // no-op — don't show banner for these
     }
 }
 
@@ -167,15 +146,19 @@ btnUpdateAction.addEventListener('click', async () => {
     }
 });
 
-btnUpdateDismiss.addEventListener('click', () => {
-    updateBanner.classList.remove('show');
-});
+btnUpdateDismiss.addEventListener('click', () => updateBanner.classList.remove('show'));
 
 // ── Buttons ───────────────────────────────────────────────────────────────────
 
+btnAuthTest.addEventListener('click', async () => {
+    appendLog('[app] ⚡ Starting ZeusX authentication test...');
+    const { success } = await api.runnerStart('auth-test');
+    if (!success) appendLog('[app] ❌ Could not start auth test — runner already active?');
+});
+
 btnRun.addEventListener('click', async () => {
     const { success } = await api.runnerStart('run');
-    if (!success) appendLog('[app] Could not start runner — already running?');
+    if (!success) appendLog('[app] ❌ Could not start runner — already running?');
 });
 
 btnWatch.addEventListener('click', async () => {
@@ -183,16 +166,11 @@ btnWatch.addEventListener('click', async () => {
         await api.runnerStop();
     } else {
         const { success } = await api.runnerStart('watch');
-        if (!success) appendLog('[app] Could not start watch mode.');
+        if (!success) appendLog('[app] ❌ Could not start watch mode.');
     }
 });
 
-btnStop.addEventListener('click', async () => {
-    await api.runnerStop();
-});
-
-btnRunAccount.addEventListener('click',    () => openAccountModal('run-for-account'));
-btnDeleteNonPerm.addEventListener('click', () => openAccountModal('delete-non-permanent'));
+btnStop.addEventListener('click', async () => { await api.runnerStop(); });
 
 btnClear.addEventListener('click', () => {
     logPanel.innerHTML = '';
@@ -203,12 +181,12 @@ btnClear.addEventListener('click', () => {
 
 btnCopyLogs.addEventListener('click', () => {
     const rows = logPanel.querySelectorAll('.log-line');
-    if (rows.length === 0) return;
+    if (!rows.length) return;
 
-    const text = [...rows].map(row => {
-        const time = row.querySelector('.log-time')?.textContent ?? '';
-        const msg  = row.querySelector('.log-text')?.textContent ?? '';
-        return `${time}  ${msg}`;
+    const text = [...rows].map((r) => {
+        const t = r.querySelector('.log-time')?.textContent ?? '';
+        const m = r.querySelector('.log-text')?.textContent ?? '';
+        return `${t}  ${m}`;
     }).join('\n');
 
     navigator.clipboard.writeText(text).then(() => {
@@ -239,192 +217,6 @@ btnTest.addEventListener('click', async () => {
     }
 });
 
-// ── Account picker modal ──────────────────────────────────────────────────────
-
-let allAccounts      = [];
-let selectedEmail    = null;
-let selectedUserId   = null;
-let currentModalMode = 'delete-non-permanent';
-
-const MODAL_CONFIGS = {
-    'run-for-account': {
-        titleIcon:    '▶',
-        title:        'Run for Account',
-        warnIcon:     'ℹ️',
-        warning:      'Only pending templates assigned to the selected account will be posted. Other accounts are not affected.',
-        confirmText:  '▶ Run Now',
-        confirmClass: 'btn primary',
-        metaLabel: (a) => {
-            const t = a.total_templates_count ?? 0;
-            return t > 0 ? `${t} template${t !== 1 ? 's' : ''}` : 'No templates';
-        },
-    },
-    'delete-non-permanent': {
-        titleIcon:    '🛡',
-        title:        'Delete Non-Permanent Offers',
-        warnIcon:     '🛡',
-        warning:      'This will delete all <strong>non-permanent</strong> offer templates from g2g.com for the selected account. Permanent (🛡) offers are protected and will NOT be touched.',
-        confirmText:  '🛡 Delete Non-Permanent',
-        confirmClass: 'btn primary',
-        metaLabel: (a) => {
-            const n = a.non_permanent_count ?? 0;
-            const t = a.total_templates_count ?? 0;
-            return n > 0
-                ? `${n} non-permanent offer${n !== 1 ? 's' : ''} will be deleted · ${t} total`
-                : `No non-permanent offers · ${t} total`;
-        },
-    },
-};
-
-function openAccountModal(mode = 'delete-non-permanent') {
-    currentModalMode = mode;
-    selectedEmail    = null;
-    selectedUserId   = null;
-    modalConfirm.disabled = true;
-    accountSearch.value   = '';
-    modalSearch.style.display = 'none';
-    modalBody.innerHTML   = '';
-    modalBody.appendChild(modalLoading);
-
-    const cfg = MODAL_CONFIGS[mode];
-    document.getElementById('modal-title-icon').textContent  = cfg.titleIcon;
-    document.getElementById('modal-title-text').textContent  = cfg.title;
-    document.getElementById('modal-warning-icon').textContent = cfg.warnIcon;
-    document.getElementById('modal-warning-text').innerHTML   = cfg.warning;
-    modalConfirm.textContent = cfg.confirmText;
-    modalConfirm.className   = cfg.confirmClass;
-
-    accountModal.classList.add('show');
-
-    api.accountsFetch().then((res) => {
-        if (!res.success) {
-            showModalError(res.error || 'Could not load accounts.');
-            return;
-        }
-        allAccounts = res.accounts || [];
-        if (allAccounts.length === 0) {
-            showModalEmpty();
-        } else {
-            if (allAccounts.length > 4) modalSearch.style.display = 'block';
-            renderAccounts(allAccounts);
-        }
-    }).catch((err) => showModalError(err.message));
-}
-
-function closeAccountModal() {
-    accountModal.classList.remove('show');
-}
-
-function showModalError(msg) {
-    modalBody.innerHTML = `
-        <div class="modal-state error-state">
-          <span class="state-icon">❌</span>
-          <span>${escapeHtml(msg)}</span>
-        </div>`;
-}
-
-function showModalEmpty() {
-    modalBody.innerHTML = `
-        <div class="modal-state">
-          <span class="state-icon">📭</span>
-          <span>No user accounts found.<br>Add accounts in the Laravel admin panel first.</span>
-        </div>`;
-}
-
-function renderAccounts(accounts) {
-    modalBody.innerHTML = '';
-
-    if (accounts.length === 0) {
-        modalBody.innerHTML = `
-            <div class="modal-state">
-              <span class="state-icon">🔍</span>
-              <span>No accounts match your search.</span>
-            </div>`;
-        return;
-    }
-
-    const cfg = MODAL_CONFIGS[currentModalMode];
-
-    accounts.forEach((acct) => {
-        const { id, email } = acct;
-        const card = document.createElement('div');
-        card.className = `account-card${selectedEmail === email ? ' selected' : ''}`;
-        card.dataset.email  = email;
-        card.dataset.userId = id;
-
-        const metaText  = cfg.metaLabel(acct);
-        const nonPerm   = acct.non_permanent_count ?? 0;
-        const metaClass = nonPerm > 0 ? 'meta-active' : 'meta-none';
-
-        card.innerHTML = `
-            <div class="account-avatar">👤</div>
-            <div class="account-info">
-              <div class="account-email" title="${escapeHtml(email)}">${escapeHtml(email)}</div>
-              <div class="account-meta"><span class="${metaClass}">${escapeHtml(metaText)}</span></div>
-            </div>
-            <div class="account-radio"></div>`;
-
-        card.addEventListener('click', () => selectAccount(email, id));
-        modalBody.appendChild(card);
-    });
-}
-
-function selectAccount(email, userId) {
-    selectedEmail  = email;
-    selectedUserId = userId;
-    modalConfirm.disabled = false;
-
-    modalBody.querySelectorAll('.account-card').forEach((card) => {
-        card.classList.toggle('selected', card.dataset.email === email);
-    });
-}
-
-// Search filter
-accountSearch.addEventListener('input', () => {
-    const q = accountSearch.value.toLowerCase().trim();
-    const filtered = q ? allAccounts.filter((a) => a.email.toLowerCase().includes(q)) : allAccounts;
-    renderAccounts(filtered);
-    // Re-apply selection highlight after re-render
-    if (selectedEmail) {
-        const card = modalBody.querySelector(`[data-email="${CSS.escape(selectedEmail)}"]`);
-        if (card) card.classList.add('selected');
-        else { selectedEmail = null; selectedUserId = null; modalConfirm.disabled = true; }
-    }
-});
-
-// Close actions
-modalCloseBtn.addEventListener('click', closeAccountModal);
-modalCancel.addEventListener('click', closeAccountModal);
-accountModal.addEventListener('click', (e) => {
-    if (e.target === accountModal) closeAccountModal();
-});
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && accountModal.classList.contains('show')) closeAccountModal();
-});
-
-// Confirm — dispatch based on current modal mode
-modalConfirm.addEventListener('click', async () => {
-    if (!selectedEmail || !selectedUserId) return;
-
-    closeAccountModal();
-
-    if (currentModalMode === 'run-for-account') {
-        const { success } = await api.runnerStartForAccount(selectedUserId, 'run');
-        if (!success) {
-            appendLog('[app] ❌ Could not start runner — a process may already be running.');
-        } else {
-            appendLog(`[app] ▶ Running pending templates for ${selectedEmail}…`);
-        }
-    } else {
-        const { success } = await api.deleterStartNonPermanent(selectedUserId, selectedEmail);
-        if (!success) {
-            appendLog('[app] ❌ Could not start non-permanent deleter — a process may already be running.');
-        } else {
-            appendLog(`[app] 🛡 Deleting non-permanent offers for ${selectedEmail}…`);
-        }
-    }
-});
-
 // ── IPC listeners ─────────────────────────────────────────────────────────────
 
 api.onLog(appendLog);
@@ -432,15 +224,6 @@ api.onStatusChange(applyStatus);
 api.onRunComplete(applyRunStats);
 api.onUpdateStatus(applyUpdateStatus);
 api.onUpdateProgress(applyUpdateProgress);
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function escapeHtml(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
@@ -451,5 +234,4 @@ function escapeHtml(str) {
     ]);
     applyStatus(status);
     if (version) appVersion.textContent = `v${version}`;
-    btnTest.click();
 })();

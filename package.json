@@ -1,7 +1,7 @@
 {
-  "name": "g2g-automation-desktop",
-  "version": "1.0.3",
-  "description": "G2G.com offer automation — Windows desktop app",
+  "name": "zeusx-automation-desktop",
+  "version": "1.0.0",
+  "description": "ZeusX.com offer automation — Windows desktop app",
   "main": "src/main/index.js",
   "scripts": {
     "start": "electron .",
@@ -22,8 +22,8 @@
     "electron-builder": "^25.0.0"
   },
   "build": {
-    "appId": "com.g2g.automation",
-    "productName": "G2G Automation",
+    "appId": "com.zeusx.automation",
+    "productName": "ZeusX Automation",
     "asar": false,
     "artifactName": "${productName} Setup ${version}.${ext}",
     "directories": {
@@ -35,9 +35,10 @@
       "assets/**/*",
       "node_modules/**/*",
       "package.json",
-      "automation/**/*",
-      "!automation/cookies/**",
-      "!automation/.env"
+      "automation-zeusx/package.json",
+      "automation-zeusx/**/*",
+      "!automation-zeusx/cookies/**",
+      "!automation-zeusx/.env"
     ],
     "win": {
       "target": [
@@ -62,7 +63,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "G2G Automation",
+      "shortcutName": "ZeusX Automation",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
       "installerHeaderIcon": "assets/icon.ico",

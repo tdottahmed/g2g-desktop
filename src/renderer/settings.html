@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
-<title>Settings — G2G Automation</title>
+<title>Settings — ZeusX Automation</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
     font-family: 'Segoe UI', system-ui, sans-serif;
-    background: #0a0d14;
+    background: #0a0810;
     color: #e2e8f0;
     height: 100vh;
     display: flex;
@@ -24,8 +24,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 14px 20px;
-    background: #161b27;
-    border-bottom: 1px solid #1e2535;
+    background: #13111f;
+    border-bottom: 1px solid #2a1f3d;
     flex-shrink: 0;
     -webkit-app-region: drag;
   }
@@ -36,29 +36,29 @@
   /* ── First-run banner ── */
   #first-run-banner {
     display: none;
-    background: linear-gradient(90deg, #1e3a5f 0%, #1a2f4a 100%);
-    border-bottom: 1px solid #2563eb44;
+    background: linear-gradient(90deg, #1e1235 0%, #190f2d 100%);
+    border-bottom: 1px solid #7c3aed44;
     padding: 14px 24px;
     flex-shrink: 0;
   }
   .banner-inner { display: flex; align-items: flex-start; gap: 14px; }
   .banner-icon  { font-size: 26px; line-height: 1; flex-shrink: 0; margin-top: 2px; }
-  .banner-title { font-size: 14px; font-weight: 600; color: #93c5fd; margin-bottom: 3px; }
-  .banner-body  { font-size: 12.5px; color: #64a8e8; line-height: 1.5; }
+  .banner-title { font-size: 14px; font-weight: 600; color: #c4b5fd; margin-bottom: 3px; }
+  .banner-body  { font-size: 12.5px; color: #9d84d6; line-height: 1.5; }
 
-  /* ── Scrollable content ── */
+  /* ── Content ── */
   .content {
     flex: 1;
     overflow-y: auto;
     padding: 20px 24px 8px;
   }
   .content::-webkit-scrollbar { width: 6px; }
-  .content::-webkit-scrollbar-thumb { background: #1e2535; border-radius: 3px; }
+  .content::-webkit-scrollbar-thumb { background: #2d2540; border-radius: 3px; }
 
   /* ── Cards ── */
   .card {
-    background: #161b27;
-    border: 1px solid #1e2535;
+    background: #13111f;
+    border: 1px solid #2a1f3d;
     border-radius: 10px;
     padding: 18px 20px;
     margin-bottom: 14px;
@@ -68,7 +68,7 @@
     font-weight: 700;
     letter-spacing: 0.9px;
     text-transform: uppercase;
-    color: #475569;
+    color: #4a3f6b;
     margin-bottom: 16px;
     display: flex;
     align-items: center;
@@ -92,17 +92,9 @@
   .input-wrap input { padding-right: 38px; }
 
   .eye-btn {
-    position: absolute;
-    right: 0; top: 0; bottom: 0;
-    width: 36px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: #475569;
-    font-size: 15px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    position: absolute; right: 0; top: 0; bottom: 0; width: 36px;
+    background: none; border: none; cursor: pointer; color: #475569;
+    font-size: 15px; display: flex; align-items: center; justify-content: center;
     transition: color 0.15s;
   }
   .eye-btn:hover { color: #94a3b8; }
@@ -110,11 +102,12 @@
   input[type="text"],
   input[type="password"],
   input[type="number"],
-  input[type="url"] {
+  input[type="url"],
+  input[type="email"] {
     width: 100%;
     padding: 9px 12px;
-    background: #0f1117;
-    border: 1px solid #1e2535;
+    background: #0d0b19;
+    border: 1px solid #2a1f3d;
     border-radius: 6px;
     color: #e2e8f0;
     font-size: 13px;
@@ -123,16 +116,15 @@
     transition: border-color 0.15s, box-shadow 0.15s;
   }
   input:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px #3b82f61a;
-    background: #12161f;
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 3px #7c3aed1a;
+    background: #100e1e;
   }
-  input::placeholder { color: #2d3748; }
+  input::placeholder { color: #2d2540; }
 
-  /* validation states */
   .form-group.has-error input { border-color: #ef4444; }
   .form-group.has-error input:focus { box-shadow: 0 0 0 3px #ef44441a; }
-  .form-group.has-success input { border-color: #22c55e; }
+  .form-group.has-success input { border-color: #a78bfa; }
 
   .field-error {
     display: none;
@@ -142,8 +134,8 @@
   }
   .form-group.has-error .field-error { display: block; }
 
-  .hint { font-size: 11px; color: #334155; margin-top: 5px; }
-  .hint code { background: #1e2535; padding: 1px 5px; border-radius: 3px; font-family: monospace; }
+  .hint { font-size: 11px; color: #2d2540; margin-top: 5px; }
+  .hint code { background: #1a1528; padding: 1px 5px; border-radius: 3px; font-family: monospace; color: #a78bfa; }
 
   /* ── Two-column grid ── */
   .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -155,28 +147,27 @@
     justify-content: space-between;
     padding: 11px 0;
   }
-  .toggle-row + .toggle-row { border-top: 1px solid #12161f; }
+  .toggle-row + .toggle-row { border-top: 1px solid #0e0c1a; }
   .toggle-label { display: flex; flex-direction: column; gap: 3px; }
   .toggle-label span { font-size: 13px; font-weight: 500; color: #cbd5e1; }
-  .toggle-label small { font-size: 11px; color: #475569; }
+  .toggle-label small { font-size: 11px; color: #4a3f6b; }
 
   .toggle { position: relative; width: 44px; height: 24px; cursor: pointer; }
   .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
   .toggle .slider {
     position: absolute; inset: 0;
-    background: #1e2535; border-radius: 24px; transition: 0.2s;
+    background: #1a1528; border-radius: 24px; transition: 0.2s;
   }
   .toggle .slider::before {
     content: ''; position: absolute;
     width: 18px; height: 18px; left: 3px; bottom: 3px;
-    background: #475569; border-radius: 50%; transition: 0.2s;
+    background: #4a3f6b; border-radius: 50%; transition: 0.2s;
   }
-  .toggle input:checked + .slider { background: #1d4ed8; }
+  .toggle input:checked + .slider { background: #5b21b6; }
   .toggle input:checked + .slider::before { transform: translateX(20px); background: #fff; }
 
   /* ── Test result box ── */
   #test-result {
-    display: none;
     margin-top: 12px;
     padding: 10px 14px;
     border-radius: 7px;
@@ -186,32 +177,17 @@
     align-items: center;
     gap: 8px;
   }
-  #test-result.ok {
-    display: flex;
-    background: #052e16;
-    border: 1px solid #166534;
-    color: #4ade80;
-  }
-  #test-result.fail {
-    display: flex;
-    background: #2d0505;
-    border: 1px solid #7f1d1d;
-    color: #f87171;
-  }
-  #test-result.testing {
-    display: flex;
-    background: #1c1a08;
-    border: 1px solid #713f12;
-    color: #fbbf24;
-  }
+  #test-result.ok   { display: flex; background: #052e16; border: 1px solid #166534; color: #4ade80; }
+  #test-result.fail { display: flex; background: #2d0505; border: 1px solid #7f1d1d; color: #f87171; }
+  #test-result.testing { display: flex; background: #1c0e35; border: 1px solid #5b21b6; color: #c4b5fd; }
 
   /* ── Buttons ── */
   .btn {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 9px 16px;
-    border: 1px solid #2d3748;
+    border: 1px solid #2d2540;
     border-radius: 6px;
-    background: #1e2535;
+    background: #1a1528;
     color: #cbd5e1;
     font-size: 13px;
     font-weight: 500;
@@ -219,11 +195,11 @@
     transition: all 0.15s;
     white-space: nowrap;
   }
-  .btn:hover   { background: #263044; border-color: #3d4f6e; color: #f1f5f9; }
+  .btn:hover   { background: #231c38; border-color: #4c3d7a; color: #f1f5f9; }
   .btn:active  { transform: scale(0.97); }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-  .btn.primary  { background: #1d4ed8; border-color: #2563eb; color: #fff; }
-  .btn.primary:hover { background: #2563eb; }
+  .btn.primary  { background: #5b21b6; border-color: #7c3aed; color: #fff; }
+  .btn.primary:hover { background: #6d28d9; }
   .btn.success  { background: #14532d; border-color: #16a34a; color: #4ade80; }
   .btn.success:hover { background: #166534; }
   .btn.sm { padding: 6px 12px; font-size: 12px; }
@@ -235,16 +211,13 @@
     align-items: center;
     gap: 10px;
     padding: 14px 24px;
-    background: #161b27;
-    border-top: 1px solid #1e2535;
+    background: #13111f;
+    border-top: 1px solid #2a1f3d;
   }
   .footer .spacer { flex: 1; }
   .unsaved-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: #f59e0b;
-    display: none;
-    margin-right: 2px;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #a78bfa; display: none; margin-right: 2px;
   }
   .unsaved-dot.visible { display: inline-block; }
 </style>
@@ -260,15 +233,15 @@
   <button class="btn sm" id="btn-back">← Back to Dashboard</button>
 </div>
 
-<!-- First-run welcome banner -->
+<!-- First-run banner -->
 <div id="first-run-banner">
   <div class="banner-inner">
-    <div class="banner-icon">🚀</div>
+    <div class="banner-icon">⚡</div>
     <div>
-      <div class="banner-title">Welcome to G2G Automation!</div>
+      <div class="banner-title">Welcome to ZeusX Automation!</div>
       <div class="banner-body">
-        Connect this app to your live Laravel server to start posting offers automatically.<br>
-        Fill in the API URL and Key below, then click <strong>Test Connection</strong> to verify.
+        Configure your ZeusX account credentials and Laravel API connection to get started.<br>
+        Click <strong>Test Connection</strong> to verify your API, then go to the dashboard.
       </div>
     </div>
   </div>
@@ -276,6 +249,60 @@
 
 <!-- Content -->
 <div class="content">
+
+  <!-- Card: ZeusX Account -->
+  <div class="card">
+    <div class="card-title">⚡ ZeusX Account</div>
+
+    <div class="form-group">
+      <label for="zeusx-email">Email <span class="required">*</span></label>
+      <input type="email" id="zeusx-email" placeholder="your@email.com" autocomplete="off" spellcheck="false" />
+      <div class="hint">Your ZeusX.com login email. Used for auto-fill on the login page.</div>
+    </div>
+
+    <div class="form-group">
+      <label for="zeusx-password">Password <span class="required">*</span></label>
+      <div class="input-wrap">
+        <input type="password" id="zeusx-password" placeholder="ZeusX password" autocomplete="off" spellcheck="false" />
+        <button class="eye-btn" id="btn-eye-password" tabindex="-1" title="Show / hide password">👁</button>
+      </div>
+      <div class="hint">Auto-filled into the login form. Never sent to any external service.</div>
+    </div>
+  </div>
+
+  <!-- Card: Chrome Profile -->
+  <div class="card">
+    <div class="card-title">🌐 Chrome Profile</div>
+
+    <div class="row-2">
+      <div class="form-group">
+        <label for="chrome-profile-name">Profile Name <span class="required">*</span></label>
+        <input type="text" id="chrome-profile-name" placeholder="e.g. Tanbir" autocomplete="off" spellcheck="false" />
+        <div class="hint">Display name shown in Chrome's profile switcher.</div>
+      </div>
+      <div class="form-group">
+        <label for="chrome-profile-email">Profile Email <span class="required">*</span></label>
+        <input type="email" id="chrome-profile-email" placeholder="e.g. you@gmail.com" autocomplete="off" spellcheck="false" />
+        <div class="hint">Google account signed into that Chrome profile.</div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="chrome-path">Chrome Executable Path</label>
+      <input type="text" id="chrome-path" placeholder="Leave blank for auto-detect" autocomplete="off" spellcheck="false" />
+      <div class="hint">
+        e.g. <code>/usr/bin/google-chrome</code> or <code>C:\Program Files\Google\Chrome\Application\chrome.exe</code>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="chrome-profile-dir">Chrome User Data Directory</label>
+      <input type="text" id="chrome-profile-dir" placeholder="Leave blank for auto-detect" autocomplete="off" spellcheck="false" />
+      <div class="hint">
+        e.g. <code>~/.config/google-chrome</code> or <code>%LOCALAPPDATA%\Google\Chrome\User Data</code>
+      </div>
+    </div>
+  </div>
 
   <!-- Card: API Connection -->
   <div class="card">
@@ -285,20 +312,19 @@
       <label for="api-url">Laravel API URL <span class="required">*</span></label>
       <input type="url" id="api-url" placeholder="https://your-laravel-app.com" autocomplete="off" spellcheck="false" />
       <div class="field-error" id="err-api-url">API URL is required.</div>
-      <div class="hint">Base URL of your live Laravel deployment — no trailing slash.</div>
+      <div class="hint">Base URL of your Laravel deployment — no trailing slash.</div>
     </div>
 
     <div class="form-group" id="fg-api-key">
       <label for="api-key">API Key <span class="required">*</span></label>
       <div class="input-wrap">
-        <input type="password" id="api-key" placeholder="Paste your API key here" autocomplete="off" spellcheck="false" />
-        <button class="eye-btn" id="btn-eye" tabindex="-1" title="Show / hide key">👁</button>
+        <input type="password" id="api-key" placeholder="Paste your API key" autocomplete="off" spellcheck="false" />
+        <button class="eye-btn" id="btn-eye-key" tabindex="-1" title="Show / hide key">👁</button>
       </div>
       <div class="field-error" id="err-api-key">API Key is required.</div>
       <div class="hint">Must match <code>API_AUTOMATION_KEY</code> in your Laravel <code>.env</code>.</div>
     </div>
 
-    <!-- Test connection result — hidden until tested -->
     <div id="test-result"></div>
   </div>
 
@@ -308,21 +334,21 @@
 
     <div class="row-2">
       <div class="form-group">
-        <label for="watch-interval">Watch Interval <span style="color:#475569;font-weight:400">(seconds)</span></label>
+        <label for="watch-interval">Watch Interval <span style="color:#4a3f6b;font-weight:400">(seconds)</span></label>
         <input type="number" id="watch-interval" min="10" max="3600" step="10" placeholder="60" />
         <div class="hint">How often to poll the API in watch mode.</div>
       </div>
       <div class="form-group">
-        <label for="slow-mo">SlowMo <span style="color:#475569;font-weight:400">(ms)</span></label>
+        <label for="slow-mo">SlowMo <span style="color:#4a3f6b;font-weight:400">(ms)</span></label>
         <input type="number" id="slow-mo" min="0" max="2000" step="10" placeholder="120" />
-        <div class="hint">Delay between Playwright actions. 100–200ms recommended.</div>
+        <div class="hint">Delay between Playwright actions.</div>
       </div>
     </div>
 
     <div class="toggle-row">
       <div class="toggle-label">
         <span>Headless Mode</span>
-        <small>Run Chromium invisibly in the background</small>
+        <small>Run browser invisibly — disable for auth testing</small>
       </div>
       <label class="toggle">
         <input type="checkbox" id="headless" />
@@ -338,7 +364,7 @@
     <div class="toggle-row">
       <div class="toggle-label">
         <span>Start with Windows</span>
-        <small>Launch G2G Automation automatically at login</small>
+        <small>Launch ZeusX Automation automatically at login</small>
       </div>
       <label class="toggle">
         <input type="checkbox" id="start-with-windows" />
@@ -353,7 +379,7 @@
 
     <div class="toggle-row" style="padding:0 0 12px">
       <div class="toggle-label">
-        <span>G2G Automation Desktop</span>
+        <span>ZeusX Automation Desktop</span>
         <small id="app-version-label">Version —</small>
       </div>
       <button class="btn sm" id="btn-check-update">🔄 Check for Updates</button>

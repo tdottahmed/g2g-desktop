@@ -3,53 +3,55 @@ const path = require('path');
 const { app, utilityProcess } = require('electron');
 
 const STATUS = {
-    IDLE: 'idle',
-    RUNNING: 'running',
+    IDLE:     'idle',
+    RUNNING:  'running',
     WATCHING: 'watching',
-    ERROR: 'error',
+    ERROR:    'error',
 };
 
 // ── Path helpers ──────────────────────────────────────────────────────────────
 
 function getAutomationDir() {
     return app.isPackaged
-        ? path.join(app.getAppPath(), 'automation')
-        : path.join(__dirname, '../../automation');
+        ? path.join(app.getAppPath(), 'automation-zeusx')
+        : path.join(__dirname, '../../automation-zeusx');
 }
 
 function getCookiesDir() {
-    return path.join(app.getPath('userData'), 'cookies');
+    return path.join(app.getPath('userData'), 'zeusx-cookies');
 }
 
 function getBrowsersDir() {
     return path.join(app.getPath('userData'), 'browsers');
 }
 
-// ── Spawn env builder ─────────────────────────────────────────────────────────
+// ── Env builder ───────────────────────────────────────────────────────────────
 
 function buildEnv(config) {
     const base = {
         ...process.env,
-        LARAVEL_API_URL:        config.LARAVEL_API_URL || '',
-        API_KEY:                config.API_KEY || '',
+        LARAVEL_API_URL:        config.LARAVEL_API_URL        || '',
+        API_KEY:                config.API_KEY                || '',
+        ZEUSX_BASE_URL:         config.ZEUSX_BASE_URL         || 'https://zeusx.com',
+        ZEUSX_EMAIL:            config.ZEUSX_EMAIL            || '',
+        ZEUSX_PASSWORD:         config.ZEUSX_PASSWORD         || '',
+        CHROME_PATH:            config.CHROME_PATH            || '',
+        CHROME_PROFILE_DIR:     config.CHROME_PROFILE_DIR     || '',
+        CHROME_PROFILE_NAME:    config.CHROME_PROFILE_NAME    || '',
+        CHROME_PROFILE_EMAIL:   config.CHROME_PROFILE_EMAIL   || '',
         HEADLESS:               config.HEADLESS ? 'true' : 'false',
         SLOW_MO:                String(config.SLOW_MO ?? 120),
         WATCH_INTERVAL_SECONDS: String(config.WATCH_INTERVAL_SECONDS ?? 60),
-        G2G_BASE_URL:           config.G2G_BASE_URL || 'https://www.g2g.com',
     };
 
     if (app.isPackaged) {
-        // Packaged: use userData for cookies and browsers (automation dir is read-only).
         return {
             ...base,
-            COOKIES_DIR:              getCookiesDir(),
+            ZEUSX_COOKIES_DIR:        getCookiesDir(),
             PLAYWRIGHT_BROWSERS_PATH: getBrowsersDir(),
         };
     }
 
-    // Dev: leave COOKIES_DIR and PLAYWRIGHT_BROWSERS_PATH unset so runner.js
-    // uses its own defaults — automation/cookies/ and ~/.cache/ms-playwright.
-    // Place cookie files in automation/cookies/<email-prefix>.json.
     return base;
 }
 
@@ -60,8 +62,7 @@ let currentStatus  = STATUS.IDLE;
 let logCallback    = null;
 let statusCallback = null;
 
-function emitLog(line) { if (logCallback) logCallback(line); }
-
+function emitLog(line)     { if (logCallback)    logCallback(line); }
 function setStatus(status) {
     currentStatus = status;
     if (statusCallback) statusCallback(status);
@@ -95,9 +96,6 @@ function start(scriptName = 'runner.js', args = [], config = {}) {
     const env = buildEnv(config);
 
     if (app.isPackaged) {
-        // utilityProcess.fork() runs Node scripts directly — no need to spawn
-        // the Electron binary with ELECTRON_RUN_AS_NODE, which breaks on Windows
-        // when the binary lives in a temp directory (portable builds).
         const scriptPath = path.join(automationDir, scriptName);
         currentProcess = utilityProcess.fork(scriptPath, args, {
             cwd: automationDir,

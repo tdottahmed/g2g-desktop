@@ -41,7 +41,7 @@ function createWindow() {
             contextIsolation: true,
             nodeIntegration: false,
         },
-        title: 'G2G Automation',
+        title: 'ZeusX Automation',
         show: false,
         backgroundColor: '#0a0d14',
     });

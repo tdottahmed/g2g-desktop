@@ -9,15 +9,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // App info
     appVersion: () => ipcRenderer.invoke('app:version'),
 
-    // Runner (post offers)
-    runnerStart:           (mode)               => ipcRenderer.invoke('runner:start', mode),
-    runnerStartForAccount: (accountId, mode)    => ipcRenderer.invoke('runner:start-for-account', { accountId, mode }),
-    runnerStop:            ()                   => ipcRenderer.invoke('runner:stop'),
-    runnerStatus:          ()                   => ipcRenderer.invoke('runner:status'),
-
-    // Deleter: delete only non-permanent offers (fetches list from API)
-    deleterStartNonPermanent: (userId, email)  => ipcRenderer.invoke('deleter:start-non-permanent', { userId, email }),
-    accountsFetch:           ()               => ipcRenderer.invoke('accounts:fetch'),
+    // Runner
+    runnerStart:  (mode) => ipcRenderer.invoke('runner:start', mode),
+    runnerStop:   ()     => ipcRenderer.invoke('runner:stop'),
+    runnerStatus: ()     => ipcRenderer.invoke('runner:status'),
 
     // Auto-update
     updateCheck:       ()  => ipcRenderer.invoke('update:check'),
@@ -26,10 +21,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateOpenRelease: ()  => ipcRenderer.invoke('update:open-releases'),
 
     // Streaming events from main process
-    onLog:            (cb) => ipcRenderer.on('log',           (_e, line)     => cb(line)),
-    onStatusChange:   (cb) => ipcRenderer.on('status-change', (_e, status)   => cb(status)),
-    onRunComplete:    (cb) => ipcRenderer.on('run:complete',  (_e, stats)    => cb(stats)),
-    onUpdateStatus:   (cb) => ipcRenderer.on('update:status', (_e, payload)  => cb(payload)),
+    onLog:            (cb) => ipcRenderer.on('log',            (_e, line)    => cb(line)),
+    onStatusChange:   (cb) => ipcRenderer.on('status-change',  (_e, status)  => cb(status)),
+    onRunComplete:    (cb) => ipcRenderer.on('run:complete',   (_e, stats)   => cb(stats)),
+    onUpdateStatus:   (cb) => ipcRenderer.on('update:status',  (_e, payload) => cb(payload)),
     onUpdateProgress: (cb) => ipcRenderer.on('update:progress',(_e, payload) => cb(payload)),
     removeListeners:  (channel) => ipcRenderer.removeAllListeners(channel),
 
