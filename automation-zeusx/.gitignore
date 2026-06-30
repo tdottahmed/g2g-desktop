@@ -1,0 +1,20 @@
+# Playwright browser profile — large, machine-specific, contains session data
+browser-profile/
+
+# Session cookies — sensitive auth data, never commit
+cookies/
+session.json
+
+# Environment variables — contains credentials
+.env
+.env.*
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+logs/
+
+# Stray tilde directory (shell expansion artifact)
+~/
