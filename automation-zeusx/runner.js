@@ -6,28 +6,31 @@
  *   node runner.js               — run once (offer posting — future)
  *   node runner.js --watch       — poll on WATCH_INTERVAL_SECONDS
  *   node runner.js --status      — check API connectivity and exit
+ *
+ * Browser profile is stored in ./browser-profile/ (Playwright bundled Chromium).
+ * First run opens a visible browser — log in manually. Session persists from then on.
  */
 
 import "./env-loader.js";
+import path from "path";
+import { fileURLToPath } from "url";
 import { chromium } from "playwright";
-import { existsSync } from "fs";
-import os from "os";
 import { ensureLoggedIn } from "./utils/auth.js";
-import { detectChromePath, detectChromeUserDataDir, findChromeProfile } from "./utils/browser-detect.js";
 import { delay } from "./utils/index.js";
 
 // ─── Config from env ──────────────────────────────────────────────────────────
 
-const HEADLESS        = process.env.HEADLESS === "true";
-const SLOW_MO         = parseInt(process.env.SLOW_MO ?? "120", 10);
-const BASE_URL        = process.env.ZEUSX_BASE_URL ?? "https://zeusx.com";
-const EMAIL           = process.env.ZEUSX_EMAIL ?? "";
-const PASSWORD        = process.env.ZEUSX_PASSWORD ?? "";
-const CHROME_PATH          = process.env.CHROME_PATH ?? "";
-const CHROME_PROFILE       = process.env.CHROME_PROFILE_DIR ?? "";
-const CHROME_PROFILE_NAME  = process.env.CHROME_PROFILE_NAME ?? "";
-const CHROME_PROFILE_EMAIL = process.env.CHROME_PROFILE_EMAIL ?? "";
-const WATCH_INTERVAL       = parseInt(process.env.WATCH_INTERVAL_SECONDS ?? "60", 10);
+const HEADLESS         = process.env.HEADLESS === "true";
+const SLOW_MO          = parseInt(process.env.SLOW_MO ?? "120", 10);
+const BASE_URL         = process.env.ZEUSX_BASE_URL ?? "https://zeusx.com";
+const EMAIL            = process.env.ZEUSX_EMAIL ?? "";
+const PASSWORD         = process.env.ZEUSX_PASSWORD ?? "";
+const WATCH_INTERVAL   = parseInt(process.env.WATCH_INTERVAL_SECONDS ?? "60", 10);
+
+const PROFILE_DIR = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "browser-profile"
+);
 
 // ─── Mode ─────────────────────────────────────────────────────────────────────
 
@@ -46,9 +49,9 @@ async function main() {
     console.log(`   Headless : ${HEADLESS}`);
     console.log(`   Account  : ${EMAIL || "(not configured)"}\n`);
 
-    if (MODE === "status") { await runStatus(); return; }
+    if (MODE === "status")    { await runStatus();   return; }
     if (MODE === "auth-test") { await runAuthTest(); return; }
-    if (MODE === "watch")    { await runWatch();    return; }
+    if (MODE === "watch")     { await runWatch();    return; }
     await runOnce();
 }
 
@@ -93,7 +96,6 @@ async function runAuthTest() {
 
         console.log("\n✅ Authentication successful!\n");
 
-        // Click the "Sell Item" button in the authenticated header
         console.log("📝 Clicking 'Sell Item' button...");
         try {
             const sellBtn = page
@@ -118,9 +120,8 @@ async function runAuthTest() {
             console.log(`⚠️  Could not click 'Sell Item': ${err.message}`);
         }
 
-        // Keep browser open until runner is stopped
         console.log("\n   (browser stays open — press Stop in the dashboard to close)");
-        await new Promise(() => {}); // wait indefinitely until killed
+        await new Promise(() => {});
 
     } finally {
         await closeAll();
@@ -159,128 +160,36 @@ async function runWatch() {
 
 // ─── Browser factory ──────────────────────────────────────────────────────────
 //
-// Finds the Chrome profile matching CHROME_PROFILE_NAME / CHROME_PROFILE_EMAIL
-// in the Chrome user data directory, then opens it via launchPersistentContext.
-// If Chrome is already running with that profile, falls back to CDP.
+// Uses Playwright's bundled Chromium with a persistent profile in ./browser-profile/.
+// Session is preserved between runs — first run opens visibly so the user can log in.
 
 async function launchBrowser() {
-    let parsedChromePath = CHROME_PATH;
-    if (parsedChromePath.startsWith('~')) parsedChromePath = parsedChromePath.replace(/^~/, os.homedir());
-    if (parsedChromePath && !existsSync(parsedChromePath)) {
-        console.log(`   ⚠️  Configured CHROME_PATH (${parsedChromePath}) does not exist. Falling back to auto-detect...`);
-        parsedChromePath = "";
-    }
+    console.log(`   🌐 Launching Chromium (persistent profile)...`);
+    console.log(`      Profile : ${PROFILE_DIR}\n`);
 
-    let parsedUserDataDir = CHROME_PROFILE;
-    if (parsedUserDataDir.startsWith('~')) parsedUserDataDir = parsedUserDataDir.replace(/^~/, os.homedir());
-    if (parsedUserDataDir && !existsSync(parsedUserDataDir)) {
-        console.log(`   ⚠️  Configured CHROME_PROFILE_DIR (${parsedUserDataDir}) does not exist. Falling back to auto-detect...`);
-        parsedUserDataDir = "";
-    }
-
-    const chromePath  = parsedChromePath || detectChromePath();
-    const userDataDir = parsedUserDataDir || detectChromeUserDataDir();
-
-    if (!chromePath)  throw new Error("Chrome binary not found. Set CHROME_PATH in settings.");
-    if (!userDataDir) throw new Error("Chrome user data directory not found. Set CHROME_PROFILE_DIR in settings.");
-
-    // Locate the profile directory by display name or signed-in email
-    let profileDirName = findChromeProfile(userDataDir, {
-        name:  CHROME_PROFILE_NAME,
-        email: CHROME_PROFILE_EMAIL,
+    const context = await chromium.launchPersistentContext(PROFILE_DIR, {
+        headless: HEADLESS,
+        slowMo:   SLOW_MO,
+        ignoreDefaultArgs: ["--enable-automation"],
+        args: [
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-blink-features=AutomationControlled",
+        ],
     });
 
-    if (!profileDirName && !CHROME_PROFILE_NAME && !CHROME_PROFILE_EMAIL) {
-        // Fallback to "Default" if no profile name or email was configured
-        profileDirName = "Default";
-    }
+    await context.addInitScript(() => {
+        Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+    });
 
-    if (!profileDirName) {
-        const hint = CHROME_PROFILE_NAME || CHROME_PROFILE_EMAIL || "(not configured)";
-        throw new Error(
-            `Chrome profile not found for "${hint}". ` +
-            "Check Settings → Chrome Profile Name / Email."
-        );
-    }
+    const page = context.pages()[0] ?? await context.newPage();
+    console.log(`   ✅ Chromium launched\n`);
 
-    console.log(`   🌐 Launching Chrome with profile "${profileDirName}"...`);
-    console.log(`      Path    : ${chromePath}`);
-    console.log(`      DataDir : ${userDataDir}`);
-    console.log(`      Profile : ${profileDirName}\n`);
-
-    try {
-        const context = await chromium.launchPersistentContext(userDataDir, {
-            executablePath: chromePath,
-            headless: HEADLESS,
-            slowMo: SLOW_MO,
-            ignoreDefaultArgs: ["--enable-automation"],
-            args: [
-                `--profile-directory=${profileDirName}`,
-                "--no-first-run",
-                "--no-default-browser-check",
-                "--disable-blink-features=AutomationControlled",
-            ],
-        });
-
-        // Hide webdriver from Cloudflare and other bot detectors
-        await context.addInitScript(() => {
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined,
-            });
-        });
-
-        const page = context.pages()[0] ?? await context.newPage();
-        console.log(`   ✅ Chrome launched (profile: ${profileDirName})\n`);
-
-        return {
-            context,
-            page,
-            closeAll: () => context.close().catch(() => {}),
-        };
-    } catch (err) {
-        const inUse = err.message.includes("already in use") ||
-                      err.message.includes("user data directory");
-
-        if (inUse) {
-            console.log("   ⚠️  Chrome is already running with this profile.");
-            console.log("      → Connecting via CDP (port 9222)...\n");
-
-            const cdp = await tryConnectCDP();
-            if (cdp) return cdp;
-
-            throw new Error(
-                "Chrome is running but CDP is not available. " +
-                `Launch Chrome with: google-chrome --remote-debugging-port=9222 --profile-directory=${profileDirName}`
-            );
-        }
-
-        throw new Error(`Chrome launch failed: ${err.message}`);
-    }
-}
-
-async function tryConnectCDP() {
-    try {
-        const browser  = await chromium.connectOverCDP("http://localhost:9222", { timeout: 3000 });
-        const contexts = browser.contexts();
-        const context  = contexts[0] ?? await browser.newContext();
-
-        // Hide webdriver from Cloudflare and other bot detectors
-        await context.addInitScript(() => {
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined,
-            });
-        });
-
-        const page     = context.pages()[0] ?? await context.newPage();
-        console.log("   ✅ Connected to running Chrome via CDP\n");
-        return {
-            context,
-            page,
-            closeAll: () => browser.close().catch(() => {}),
-        };
-    } catch {
-        return null;
-    }
+    return {
+        context,
+        page,
+        closeAll: () => context.close().catch(() => {}),
+    };
 }
 
 // ─── Run ──────────────────────────────────────────────────────────────────────
